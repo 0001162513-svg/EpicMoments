@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Epic Moments - Plataforma gamer de achievements, rankings e torneios">
+  <title>Epic Moments - Conquistas Inesqueciveis</title>
+  <link rel="stylesheet" href="/style.css">
+  <link rel="icon" href="/img/logo-icon.png">
+</head>
+<body>
+  <!-- Mobile Header -->
+  <div id="mobile-header">
+    <div class="flex items-center gap-2">
+      <button onclick="toggleMobileSidebar()" style="background:none;border:none;color:var(--text);font-size:24px;cursor:pointer;">☰</button>
+      <img src="/img/logo-icon.png" alt="Logo" style="height:32px;width:32px;">
+      <span class="font-orbitron font-black text-sm gradient-text">EPIC MOMENTS</span>
+    </div>
+    <div id="mobile-user-btn"></div>
+  </div>
+  <div id="mobile-overlay" onclick="toggleMobileSidebar()"></div>
+
+  <!-- Sidebar -->
+  <nav id="sidebar">
+    <div class="sidebar-logo">
+      <img src="/img/logo-icon.png" alt="Logo">
+      <span class="font-orbitron gradient-text">EPIC MOMENTS</span>
+    </div>
+    <div class="sidebar-nav" id="sidebar-nav"></div>
+    <div class="sidebar-user" id="sidebar-user"></div>
+  </nav>
+
+  <!-- Main -->
+  <div id="main-content">
+    <div id="page-content"></div>
+    <footer>© <span id="year"></span> Epic Moments. Todos os direitos reservados.</footer>
+  </div>
+
+  <!-- Friends FAB -->
+  <button id="friends-fab" class="gradient-main hidden" onclick="toggleFriends()">
+    👥
+    <span class="fab-badge hidden" id="fab-badge">0</span>
+  </button>
+  <div id="friends-panel" class="hidden"></div>
+
+  <!-- Auth Modal Container -->
+  <div id="auth-modal" class="hidden"></div>
+
+  <!-- Terms Modal Container -->
+  <div id="terms-modal" class="hidden"></div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
