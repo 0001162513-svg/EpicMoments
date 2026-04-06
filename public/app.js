@@ -9,7 +9,6 @@ let chatMessages = [];
 document.getElementById('year').textContent = new Date().getFullYear();
 
 async function init() {
-  // Apply saved theme
   const savedTheme = localStorage.getItem('epicmoments-theme');
   if (savedTheme) document.documentElement.setAttribute('data-theme', savedTheme);
   try {
@@ -55,7 +54,6 @@ function renderSidebar() {
   const nav = document.getElementById('sidebar-nav');
   const isLight = document.documentElement.getAttribute('data-theme') === 'light';
   let html = '';
-  // Theme toggle at top
   html += `<button class="theme-toggle" onclick="toggleTheme()">${isLight ? '🌙' : '☀️'} ${isLight ? 'Tema Escuro' : 'Tema Claro'}</button>`;
   navItems.forEach(item => {
     html += `<button class="${currentPage === item.id ? 'active' : ''}" onclick="navigateTo('${item.id}')">${item.icon} ${item.label}</button>`;
@@ -384,7 +382,6 @@ async function renderJogoDetail(el) {
     html += `<p class="text-muted text-sm mb-3">${esc(j.descricao||'')}</p>`;
     html += `<p class="text-xs text-muted">Desenvolvedor: ${esc(j.desenvolvedor||'')}</p>`;
     html += `<div class="flex gap-2 mt-3"><span class="badge badge-points">👤 ${j.totalJogadores||0} jogadores</span><span class="badge badge-easy">🏆 ${j.totalAchievements||0} achievements</span></div>`;
-    // Check if game is linked
     let vinculadosIds = [];
     if (currentUser) {
       try {
@@ -554,7 +551,6 @@ async function renderComunidadeDetail(el) {
     const data = await res.json();
     const { comunidade: com, membros, topicos, meuEstado } = data;
 
-    // Determine membership status
     const isMember = meuEstado && meuEstado.estado === 'aceito';
     const isPending = meuEstado && meuEstado.estado === 'pendente';
     const isAdmin = currentUser && currentUser.tipo === 'administrador';
@@ -567,7 +563,6 @@ async function renderComunidadeDetail(el) {
     if (com.descricao) html += `<p class="text-muted text-sm mb-3">${esc(com.descricao)}</p>`;
     html += `<div class="flex gap-3 flex-wrap"><span class="badge badge-points">👥 ${membros.length} membros</span><span class="badge badge-easy">💬 ${topicos.length} tópicos</span></div>`;
 
-    // Candidatar-se button
     if (currentUser && !isMember && !isPending) {
       html += `<div class="mt-4"><button class="btn btn-gold btn-sm" onclick="pedirEntrada(${comId})">👤 Candidatar-se à Comunidade</button></div>`;
     } else if (isPending) {
@@ -579,7 +574,6 @@ async function renderComunidadeDetail(el) {
 
     html += `<div class="tabs"><button class="tab active" id="com-tab-forum" onclick="switchComTab('forum')">💬 Fórum</button><button class="tab" id="com-tab-membros" onclick="switchComTab('membros')">👥 Membros (${membros.length})</button></div>`;
 
-    // Forum
     html += `<div id="com-forum">`;
     if (canPost) {
       html += `<div class="mb-4"><button class="btn btn-primary btn-sm" onclick="document.getElementById('new-post-form').classList.toggle('hidden')">+ Nova Postagem</button></div>`;
@@ -607,7 +601,6 @@ async function renderComunidadeDetail(el) {
     if (topicos.length === 0) html += `<div class="text-center p-6 text-muted">Nenhum tópico ainda. Seja o primeiro a postar!</div>`;
     html += `</div>`;
 
-    // Membros
     html += `<div id="com-membros" class="hidden">`;
     membros.forEach(m => {
       const roleColor = m.papel === 'criador' ? 'color:#fde047' : m.papel === 'moderador' ? 'color:#60a5fa' : 'color:var(--text-muted)';
@@ -702,7 +695,6 @@ async function renderEnquetes(el) {
     let html = `<div class="animate-in" style="max-width:900px;margin:0 auto;">`;
     html += `<h1 class="font-orbitron font-black mb-6" style="font-size:28px;">📊 Enquetes de Achievements</h1>`;
 
-    // Suggestion form for all logged-in users
     if (currentUser) {
       html += `<div class="card p-6 mb-6">`;
       html += `<div class="font-orbitron font-bold mb-3">📝 Sugerir Novo Achievement</div>`;
@@ -719,23 +711,48 @@ async function renderEnquetes(el) {
       html += `</div>`;
     }
 
+    const now = new Date();
+
     html += `<div class="grid grid-2">`;
     enquetes.forEach(e => {
-      const expired = new Date(e.data_fim) < new Date();
-      const approved = e.percentual >= 70 && expired;
+      const dataFim = new Date(e.data_fim);
+      const expired = dataFim < now;
+      const approved = e.percentual >= 70 && expired && e.total_votos >= 3;
+
+      // Calculate deletion warning: 1 day after expiry for approved enquetes
+      let deletionWarning = '';
+      if (approved) {
+        const deletionDate = new Date(dataFim);
+        deletionDate.setDate(deletionDate.getDate() + 1);
+        const hoursLeft = Math.max(0, Math.round((deletionDate - now) / 3600000));
+        if (hoursLeft > 0) {
+          deletionWarning = `<div style="margin-top:8px;padding:6px 10px;border-radius:6px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);font-size:11px;color:#f87171;">⏳ Esta enquete será removida em ${hoursLeft < 24 ? hoursLeft + 'h' : '1 dia'}</div>`;
+        } else {
+          deletionWarning = `<div style="margin-top:8px;padding:6px 10px;border-radius:6px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);font-size:11px;color:#f87171;">⏳ Esta enquete será removida em breve</div>`;
+        }
+      }
+
       const statusBadge = approved ? 'badge-easy' : expired ? 'badge-hard' : 'badge-medium';
-      const statusText = approved ? '✅ Aprovado' : expired ? '❌ Não aprovado' : '⏳ Em votação';
+      const statusText = approved ? '✅ Aprovado — Achievement adicionado!' : expired ? '❌ Não aprovado' : '⏳ Em votação';
       const barColor = e.percentual >= 70 ? '#22c55e' : '#f59e0b';
-      html += `<div class="card p-5"><div class="font-orbitron font-bold text-sm mb-2">📊 ${esc(e.nome_achievement)}</div>`;
+
+      html += `<div class="card p-5" style="${approved ? 'border:1px solid rgba(34,197,94,0.3);' : ''}">`;
+      html += `<div class="font-orbitron font-bold text-sm mb-2">📊 ${esc(e.nome_achievement)}</div>`;
       if (e.descricao) html += `<p class="text-muted text-xs mb-2">${esc(e.descricao)}</p>`;
       html += `<p class="text-muted text-xs">Jogo: ${esc(e.jogo_nome||'Geral')} | Fim: ${formatDate(e.data_fim)}</p>`;
-      html += `<div class="flex gap-2 mt-2 mb-3"><span class="badge ${statusBadge}">${statusText}</span><span class="badge badge-points">${e.percentual}% (${e.total_votos} votos)</span></div>`;
+      html += `<div class="flex gap-2 mt-2 mb-3 flex-wrap"><span class="badge ${statusBadge}">${statusText}</span><span class="badge badge-points">${e.percentual}% (${e.total_votos} votos)</span></div>`;
       html += `<div class="progress-bar mb-3"><div class="progress-fill" style="width:${e.percentual}%;background:${barColor};"></div></div>`;
-      const jaVotou = votos.includes(e.id_enquete);
-      if (currentUser && !expired && !jaVotou) {
-        html += `<div class="flex gap-2"><button class="btn btn-primary btn-sm" onclick="votarEnquete(${e.id_enquete},'aprovar')">👍 Aprovar</button><button class="btn btn-danger btn-sm" onclick="votarEnquete(${e.id_enquete},'rejeitar')">👎 Rejeitar</button></div>`;
-      } else if (currentUser && jaVotou) {
-        html += `<div class="flex items-center gap-2 mt-2"><span class="text-xs text-muted">✅ Você já votou nesta enquete</span></div>`;
+
+      if (approved) {
+        html += `<div style="padding:8px 12px;border-radius:8px;background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.25);font-size:12px;color:#4ade80;margin-bottom:8px;">🏆 Achievement já disponível na seção de Achievements!</div>`;
+        html += deletionWarning;
+      } else {
+        const jaVotou = votos.includes(e.id_enquete);
+        if (currentUser && !expired && !jaVotou) {
+          html += `<div class="flex gap-2"><button class="btn btn-primary btn-sm" onclick="votarEnquete(${e.id_enquete},'aprovar')">👍 Aprovar</button><button class="btn btn-danger btn-sm" onclick="votarEnquete(${e.id_enquete},'rejeitar')">👎 Rejeitar</button></div>`;
+        } else if (currentUser && jaVotou) {
+          html += `<div class="flex items-center gap-2 mt-2"><span class="text-xs text-muted">✅ Você já votou nesta enquete</span></div>`;
+        }
       }
       html += `</div>`;
     });
@@ -780,7 +797,6 @@ async function renderTorneios(el) {
     if (currentUser && currentUser.tipo === 'administrador') html += `<button class="btn btn-primary btn-sm" onclick="toggleCreateTorneio()">+ Criar Torneio</button>`;
     html += `</div>`;
 
-    // Create torneio form (admin only)
     if (currentUser && currentUser.tipo === 'administrador') {
       const [jogosRes, achsRes] = await Promise.all([fetch('/api/jogos'), fetch('/api/achievements')]);
       const jogos = await jogosRes.json();
@@ -862,12 +878,11 @@ async function renderTorneioDetail(el) {
     const t = data.torneio;
     const active = new Date(t.data_fim) > new Date();
 
-    // Check inscription - block access if not inscribed (admin exempt)
     if (currentUser && currentUser.tipo !== 'administrador' && !data.inscrito) {
       let html = `<div class="animate-in" style="max-width:900px;margin:0 auto;">`;
       html += `<button class="btn btn-secondary btn-sm mb-4" onclick="navigateTo('torneios')">← Voltar aos Torneios</button>`;
       html += `<div class="card p-6 text-center"><h2 class="font-orbitron font-bold mb-2">🏟️ ${esc(t.nome)}</h2>`;
-      html += `<p class="text-muted mb-4">Voce precisa se inscrever neste torneio para acessar os detalhes.</p>`;
+      html += `<p class="text-muted mb-4">Você precisa se inscrever neste torneio para acessar os detalhes.</p>`;
       if (active) html += `<button class="btn btn-gold" onclick="inscreverTorneio(${torId})">💳 Inscrever-se</button>`;
       html += `</div></div>`;
       el.innerHTML = html;
@@ -888,19 +903,16 @@ async function renderTorneioDetail(el) {
     html += `<div class="text-center p-4" style="background:rgba(30,41,59,0.3);border-radius:12px;border:1px solid rgba(42,51,80,0.5);"><div class="font-orbitron font-bold text-sm">👤 ${data.inscritos}/${t.max_participantes}</div><div class="text-xs mt-1 font-bold ${active?'':'text-danger'}" style="${active?'color:var(--success)':''}">${active?'Aberto':'Encerrado'}</div></div>`;
     html += `</div>`;
 
-    // Prizes
     html += `<h3 class="font-orbitron font-bold mb-3">🏅 Premiações</h3><div class="flex gap-4 flex-wrap mb-6">`;
     [{pos:'1º',e:'🥇',p:t.premio_1,c:'rank-1'},{pos:'2º',e:'🥈',p:t.premio_2,c:'rank-2'},{pos:'3º',e:'🥉',p:t.premio_3,c:'rank-3'}].forEach(pr => {
       html += `<div class="card p-4 text-center" style="flex:1;min-width:120px;"><div style="font-size:32px;margin-bottom:4px;">${pr.e}</div><div class="font-orbitron font-bold ${pr.c}" style="font-size:18px;">${pr.pos} Lugar</div><div class="text-sm font-bold">R$ ${Number(pr.p).toFixed(2)}</div></div>`;
     });
     html += `</div>`;
 
-    // Inscription
     html += `<div class="card p-4 mb-6 flex items-center justify-between"><div><div class="text-xs text-muted uppercase">Taxa de Inscrição</div><div class="font-orbitron font-bold text-accent" style="font-size:18px;">R$ ${Number(t.taxa_inscricao).toFixed(2)}</div></div>`;
     if (currentUser && active) html += `<button class="btn btn-gold" onclick="inscreverTorneio(${torId})">💳 Inscrever-se (Simulado)</button>`;
     html += `</div></div>`;
 
-    // Mural
     html += `<div class="card p-6 mb-6"><h3 class="font-orbitron font-bold mb-4">📢 Mural do Torneio</h3>`;
     if (data.mural.length > 0) {
       data.mural.forEach(m => {
@@ -914,7 +926,6 @@ async function renderTorneioDetail(el) {
     }
     html += `</div>`;
 
-    // Ranking
     html += `<div class="card p-6"><h3 class="font-orbitron font-bold mb-4">🏆 Ranking do Torneio</h3>`;
     html += `<p class="text-xs text-muted mb-3">Quem completar o achievement mais rápido ganha!</p>`;
     html += `<div class="table-wrap"><table><thead><tr><th>#</th><th>Jogador</th><th>Tempo</th><th>Pontos</th></tr></thead><tbody>`;
@@ -948,6 +959,14 @@ async function postMural(id) {
 }
 
 // =================== SOBRE ===================
+// FIX: toggleFaq uses index so the arrow targets the correct span, not the question text
+function toggleFaq(btn) {
+  const content = btn.nextElementSibling;
+  const arrow = btn.querySelector('.faq-arrow');
+  const isHidden = content.classList.toggle('hidden');
+  if (arrow) arrow.textContent = isHidden ? '▼' : '▲';
+}
+
 function renderSobre(el) {
   const faqItems = [
     { q: 'O que é a Epic Moments?', a: 'A Epic Moments é uma plataforma focada na criação e organização de achievements para a comunidade gamer. Nosso objetivo é promover a competitividade saudável entre amigos e jogadores.' },
@@ -964,13 +983,29 @@ function renderSobre(el) {
   html += `<p class="text-muted text-sm mb-4" style="line-height:1.8;">A Epic Moments é uma plataforma inovadora focada na comunidade gamer. Aqui, suas conquistas não são apenas medalhas virtuais — elas geram pontos, influenciam seu ranking e podem te qualificar para torneios com premiação real.</p>`;
   html += `<p class="text-muted text-sm" style="line-height:1.8;">Nossa missão é promover competitividade saudável, unir jogadores e celebrar cada momento épico dos games.</p></div>`;
 
-  html += `<div class="card p-6 mb-6"><button onclick="this.nextElementSibling.classList.toggle('hidden');this.querySelector('span').textContent=this.nextElementSibling.classList.contains('hidden')?'▼':'▲'" class="w-full flex items-center justify-between" style="background:none;border:none;color:var(--text);cursor:pointer;"><h2 class="font-orbitron font-bold" style="font-size:18px;">📜 Código de Conduta</h2><span class="text-muted">▼</span></button>`;
-  html += `<div class="hidden mt-4 text-muted text-sm" style="line-height:1.8;">${renderCodigoConduta()}</div></div>`;
+  // FIX: Código de Conduta toggle — use .faq-arrow class
+  html += `<div class="card p-6 mb-6">
+    <button onclick="toggleFaq(this)" class="w-full flex items-center justify-between" style="background:none;border:none;color:var(--text);cursor:pointer;">
+      <h2 class="font-orbitron font-bold" style="font-size:18px;">📜 Código de Conduta</h2>
+      <span class="text-muted faq-arrow">▼</span>
+    </button>
+    <div class="hidden mt-4 text-muted text-sm" style="line-height:1.8;">${renderCodigoConduta()}</div>
+  </div>`;
 
   html += `<h2 class="font-orbitron font-bold mb-4" style="font-size:20px;">❓ Perguntas Frequentes (FAQ)</h2>`;
-  faqItems.forEach((item, i) => {
-    html += `<div class="card mb-3" style="overflow:hidden;"><button onclick="this.nextElementSibling.classList.toggle('hidden');this.querySelector('span').textContent=this.nextElementSibling.classList.contains('hidden')?'▼':'▲'" class="w-full flex items-center justify-between p-5" style="background:none;border:none;color:var(--text);cursor:pointer;text-align:left;"><span class="font-orbitron font-bold text-sm">${item.q}</span><span class="text-muted">▼</span></button>`;
-    html += `<div class="hidden" style="padding:0 20px 20px;border-top:1px solid var(--border);"><p class="text-muted text-sm mt-3" style="line-height:1.7;">${item.a}</p></div></div>`;
+
+  // FIX: each FAQ button calls toggleFaq(this) — arrow span has class faq-arrow
+  faqItems.forEach(item => {
+    html += `
+      <div class="card mb-3" style="overflow:hidden;">
+        <button onclick="toggleFaq(this)" class="w-full flex items-center justify-between p-5" style="background:none;border:none;color:var(--text);cursor:pointer;text-align:left;">
+          <span class="font-orbitron font-bold text-sm">${item.q}</span>
+          <span class="text-muted faq-arrow">▼</span>
+        </button>
+        <div class="hidden" style="padding:0 20px 20px;border-top:1px solid var(--border);">
+          <p class="text-muted text-sm mt-3" style="line-height:1.7;">${item.a}</p>
+        </div>
+      </div>`;
   });
   html += `</div>`;
   el.innerHTML = html;
@@ -985,7 +1020,6 @@ async function renderPerfil(el) {
     const data = await res.json();
 
     let html = `<div class="animate-in" style="max-width:900px;margin:0 auto;">`;
-    // Header with banner
     const initial = currentUser.nickname.charAt(0).toUpperCase();
     html += `<div class="profile-banner" style="background:${currentUser.cor_banner||'#6366f1'};height:120px;border-radius:var(--radius) var(--radius) 0 0;position:relative;">`;
     html += `<div style="position:absolute;bottom:-40px;left:24px;z-index:2;">`;
@@ -1005,10 +1039,8 @@ async function renderPerfil(el) {
     html += `<div class="text-center"><div class="font-orbitron font-black text-accent" style="font-size:20px;">${(data.jogos||[]).length}</div><div class="text-xs text-muted uppercase">Jogos</div></div>`;
     html += `</div></div></div>`;
 
-    // Tabs
     html += `<div class="tabs"><button class="tab active" id="perf-tab-achs" onclick="switchPerfTab('achs')">🏆 Achievements</button><button class="tab" id="perf-tab-jogos" onclick="switchPerfTab('jogos')">🎮 Jogos</button><button class="tab" id="perf-tab-edit" onclick="switchPerfTab('edit')">⚙️ Editar Perfil</button></div>`;
 
-    // Achievements
     html += `<div id="perf-achs" class="grid grid-3">`;
     (data.achievements||[]).forEach(a => {
       const db = a.dificuldade === 'facil' ? 'badge-easy' : a.dificuldade === 'medio' ? 'badge-medium' : 'badge-hard';
@@ -1023,7 +1055,6 @@ async function renderPerfil(el) {
     if ((data.achievements||[]).length === 0) html += `<p class="text-muted">Nenhum achievement conquistado</p>`;
     html += `</div>`;
 
-    // Jogos
     html += `<div id="perf-jogos" class="hidden grid grid-3">`;
     (data.jogos||[]).forEach(j => {
       html += `<div class="card" style="overflow:hidden;"><img src="${esc(j.imagem||'/img/logo-icon.png')}" alt="${esc(j.nome)}" style="width:100%;height:120px;object-fit:cover;" onerror="this.src='/img/logo-icon.png'"><div class="p-4"><div class="font-orbitron font-bold text-sm mb-1">${esc(j.nome)}</div><p class="text-muted text-xs">Dev: ${esc(j.desenvolvedor||'')}</p></div></div>`;
@@ -1031,7 +1062,6 @@ async function renderPerfil(el) {
     if ((data.jogos||[]).length === 0) html += `<p class="text-muted">Nenhum jogo vinculado</p>`;
     html += `</div>`;
 
-    // Edit
     html += `<div id="perf-edit" class="hidden"><div class="card p-6" style="max-width:500px;">`;
     html += `<div class="font-orbitron font-bold mb-4">Editar Perfil</div>`;
     html += `<div id="perf-alert"></div>`;
@@ -1122,15 +1152,18 @@ async function renderUserProfile(el) {
     html += `<div class="text-center"><div class="font-orbitron font-black text-accent" style="font-size:20px;">${(data.achievements||[]).length}</div><div class="text-xs text-muted uppercase">Achievements</div></div>`;
     html += `<div class="text-center"><div class="font-orbitron font-black text-accent" style="font-size:20px;">${(data.jogos||[]).length}</div><div class="text-xs text-muted uppercase">Jogos</div></div>`;
     html += `</div>`;
+
+    // FIX: Admins cannot report users — only regular users can
     if (currentUser && currentUser.id !== userId) {
       html += `<div class="flex gap-2 mt-4">`;
       html += `<button class="btn btn-gold btn-sm" onclick="addFriendByNick('${esc(profile.nickname)}')">👤 Adicionar Amigo</button>`;
-      html += `<button class="btn btn-danger btn-sm" onclick="denunciarUsuario(${userId})">🚨 Denunciar</button>`;
+      if (currentUser.tipo !== 'administrador') {
+        html += `<button class="btn btn-danger btn-sm" onclick="denunciarUsuario(${userId})">🚨 Denunciar</button>`;
+      }
       html += `</div>`;
     }
     html += `</div></div>`;
 
-    // Achievements
     html += `<h3 class="font-orbitron font-bold mb-4" style="font-size:18px;">🏆 Achievements (${(data.achievements||[]).length})</h3>`;
     html += `<div class="grid grid-3 mb-6">`;
     (data.achievements||[]).forEach(a => {
@@ -1143,7 +1176,6 @@ async function renderUserProfile(el) {
     if ((data.achievements||[]).length === 0) html += `<p class="text-muted">Nenhum achievement conquistado</p>`;
     html += `</div>`;
 
-    // Jogos
     html += `<h3 class="font-orbitron font-bold mb-4" style="font-size:18px;">🎮 Jogos Vinculados (${(data.jogos||[]).length})</h3>`;
     html += `<div class="grid grid-3">`;
     (data.jogos||[]).forEach(j => {
@@ -1166,22 +1198,39 @@ async function renderAdmin(el) {
     const jogos = await jogosRes.json();
     const achs = await achsRes.json();
 
+    // Is this the super admin (id 1)?
+    const isSuperAdmin = currentUser.id === 1;
+
     let html = `<div class="animate-in" style="max-width:1100px;margin:0 auto;">`;
     html += `<h1 class="font-orbitron font-black mb-6" style="font-size:28px;">🛡️ Painel de Administração</h1>`;
-    html += `<div class="tabs"><button class="tab active" id="adm-tab-users" onclick="switchAdmTab('users')">👥 Utilizadores</button><button class="tab" id="adm-tab-jogos" onclick="switchAdmTab('jogos')">🎮 Jogos</button><button class="tab" id="adm-tab-achs" onclick="switchAdmTab('achs')">🏆 Achievements</button><button class="tab" id="adm-tab-denuncias" onclick="switchAdmTab('denuncias')">🚨 Denúncias</button></div>`;
 
-    // Users
+    // Tab bar — include Reivindicações and (if super admin) Gerenciar Admins
+    let tabsHtml = `<div class="tabs">
+      <button class="tab active" id="adm-tab-users" onclick="switchAdmTab('users')">👥 Utilizadores</button>
+      <button class="tab" id="adm-tab-reiv" onclick="switchAdmTab('reiv')">📋 Reivindicações</button>
+      <button class="tab" id="adm-tab-jogos" onclick="switchAdmTab('jogos')">🎮 Jogos</button>
+      <button class="tab" id="adm-tab-achs" onclick="switchAdmTab('achs')">🏆 Achievements</button>
+      <button class="tab" id="adm-tab-denuncias" onclick="switchAdmTab('denuncias')">🚨 Denúncias</button>`;
+    if (isSuperAdmin) {
+      tabsHtml += `<button class="tab" id="adm-tab-admins" onclick="switchAdmTab('admins')">👑 Admins</button>`;
+    }
+    tabsHtml += `</div>`;
+    html += tabsHtml;
+
+    // ── Users tab ──
     html += `<div id="adm-users" class="card" style="overflow:hidden;"><div class="table-wrap"><table><thead><tr><th>ID</th><th>Nickname</th><th>Email</th><th>Tipo</th><th>Pontos</th><th>Ações</th></tr></thead><tbody>`;
     users.forEach(u => {
       const isSelf = u.id === currentUser.id;
       const banBtn = !isSelf ? `<button class="btn btn-danger btn-sm" onclick="adminBanir(${u.id})">${u.banido?'Desbanir':'Banir'}</button>` : '';
-      const promoBtn = !isSelf ? `<button class="btn btn-secondary btn-sm" onclick="adminPromover(${u.id})">${u.tipo==='administrador'?'Rebaixar':'Promover'}</button>` : '';
       html += `<tr><td>${u.id}</td><td class="font-bold">${esc(u.nickname)}</td><td class="text-muted">${esc(u.email)}</td><td><span class="badge ${u.tipo==='administrador'?'badge-points':'badge-easy'}">${u.tipo}</span></td><td>${u.pontos_usuario}</td>`;
-      html += `<td><div class="flex gap-1">${banBtn}${promoBtn}</div></td></tr>`;
+      html += `<td><div class="flex gap-1">${banBtn}</div></td></tr>`;
     });
     html += `</tbody></table></div></div>`;
 
-    // Jogos
+    // ── Reivindicações tab ──
+    html += `<div id="adm-reiv" class="hidden"><p class="text-muted text-sm mb-4" style="padding:8px 0;">Carregando reivindicações...</p></div>`;
+
+    // ── Jogos tab ──
     html += `<div id="adm-jogos" class="hidden">`;
     html += `<button class="btn btn-gold btn-sm mb-4" onclick="document.getElementById('admin-add-jogo-form').classList.toggle('hidden')">+ Adicionar Jogo</button>`;
     html += `<div class="card" style="overflow:hidden;"><div class="table-wrap"><table><thead><tr><th>ID</th><th>Nome</th><th>Dev</th><th>Ações</th></tr></thead><tbody>`;
@@ -1205,7 +1254,7 @@ async function renderAdmin(el) {
     </div>`;
     html += `</div>`;
 
-    // Achievements
+    // ── Achievements tab ──
     html += `<div id="adm-achs" class="hidden card" style="overflow:hidden;"><div class="table-wrap"><table><thead><tr><th>ID</th><th>Nome</th><th>Dificuldade</th><th>Pontos</th><th>Ações</th></tr></thead><tbody>`;
     achs.forEach(a => {
       const db = a.dificuldade === 'facil' ? 'badge-easy' : a.dificuldade === 'medio' ? 'badge-medium' : 'badge-hard';
@@ -1213,28 +1262,149 @@ async function renderAdmin(el) {
     });
     html += `</tbody></table></div></div>`;
 
-    // Denuncias
+    // ── Denuncias tab ──
     html += `<div id="adm-denuncias" class="hidden"><p class="text-muted text-sm mb-4">Carregando denúncias...</p></div>`;
+
+    // ── Admins tab (super admin only) ──
+    if (isSuperAdmin) {
+      html += `<div id="adm-admins" class="hidden">`;
+      html += `<div class="card p-6 mb-4" style="border-top:3px solid var(--primary);">`;
+      html += `<div class="font-orbitron font-bold mb-3">👑 Gerenciar Administradores</div>`;
+      html += `<p class="text-muted text-sm mb-4">Apenas o administrador principal pode promover ou rebaixar administradores.</p>`;
+      html += `<div id="admins-alert"></div>`;
+      html += `<div class="mb-3"><label class="label">Buscar usuário por nickname *</label>
+        <div class="flex gap-2">
+          <input class="input" id="admin-promo-nick" placeholder="Digite o nickname exato do usuário">
+          <button class="btn btn-gold btn-sm shrink-0" onclick="adminPromoverPorNick()">Buscar e Promover / Rebaixar</button>
+        </div>
+      </div>`;
+      html += `<div id="admin-promo-result"></div>`;
+      html += `</div>`;
+
+      // Table of current admins
+      html += `<div class="card" style="overflow:hidden;"><div class="font-orbitron font-bold text-sm p-4 border-b" style="border-color:var(--border);">Administradores Atuais</div><div class="table-wrap"><table><thead><tr><th>ID</th><th>Nickname</th><th>Email</th><th>Ação</th></tr></thead><tbody>`;
+      users.filter(u => u.tipo === 'administrador').forEach(u => {
+        const isSelf = u.id === currentUser.id;
+        html += `<tr><td>${u.id}</td><td class="font-bold">${esc(u.nickname)}</td><td class="text-muted">${esc(u.email)}</td>`;
+        html += `<td>${isSelf ? '<span class="text-xs text-muted">Você</span>' : `<button class="btn btn-danger btn-sm" onclick="adminRebaixar(${u.id},'${esc(u.nickname)}')">Rebaixar</button>`}</td></tr>`;
+      });
+      html += `</tbody></table></div></div>`;
+      html += `</div>`;
+    }
+
     html += `</div>`;
     el.innerHTML = html;
 
-    // Load denuncias async
+    // Load async tabs
+    loadAdminReivindicacoes();
     loadAdminDenuncias();
   } catch(e) { el.innerHTML = `<div class="text-center p-6 text-muted">Erro ao carregar painel admin</div>`; }
   hideLoading();
 }
 
 function switchAdmTab(tab) {
-  ['users','jogos','achs','denuncias'].forEach(t => {
-    document.getElementById(`adm-tab-${t}`).classList.toggle('active', t === tab);
-    document.getElementById(`adm-${t}`).classList.toggle('hidden', t !== tab);
+  const tabs = ['users','reiv','jogos','achs','denuncias','admins'];
+  tabs.forEach(t => {
+    const btn = document.getElementById(`adm-tab-${t}`);
+    const panel = document.getElementById(`adm-${t}`);
+    if (btn) btn.classList.toggle('active', t === tab);
+    if (panel) panel.classList.toggle('hidden', t !== tab);
   });
 }
 
 async function adminBanir(id) { await fetch('/api/admin/banir', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id_usuario:id}) }); navigateTo('admin'); }
-async function adminPromover(id) { await fetch('/api/admin/promover', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id_usuario:id}) }); navigateTo('admin'); }
 async function adminDelJogo(id) { if (confirm('Eliminar este jogo?')) { await fetch(`/api/admin/jogos/${id}`, { method:'DELETE' }); navigateTo('admin'); } }
 async function adminDelAch(id) { if (confirm('Eliminar este achievement?')) { await fetch(`/api/admin/achievements/${id}`, { method:'DELETE' }); navigateTo('admin'); } }
+
+// Super admin: promote by nickname search
+async function adminPromoverPorNick() {
+  const nick = document.getElementById('admin-promo-nick').value.trim();
+  if (!nick) { document.getElementById('admins-alert').innerHTML = '<div class="alert alert-error">Digite o nickname</div>'; return; }
+  try {
+    const res = await fetch('/api/admin/usuarios');
+    const users = await res.json();
+    const user = users.find(u => u.nickname.toLowerCase() === nick.toLowerCase());
+    if (!user) { document.getElementById('admins-alert').innerHTML = `<div class="alert alert-error">Usuário "${esc(nick)}" não encontrado</div>`; return; }
+    if (user.id === currentUser.id) { document.getElementById('admins-alert').innerHTML = '<div class="alert alert-error">Você não pode alterar seu próprio cargo</div>'; return; }
+    const isAdmin = user.tipo === 'administrador';
+    document.getElementById('admin-promo-result').innerHTML = `
+      <div class="card p-4" style="border-left:3px solid var(--primary);">
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="font-bold">${esc(user.nickname)}</div>
+            <div class="text-xs text-muted">Cargo atual: <span class="badge ${isAdmin?'badge-points':'badge-easy'}">${user.tipo}</span></div>
+          </div>
+          <button class="btn ${isAdmin?'btn-danger':'btn-gold'} btn-sm" onclick="adminExecutarPromocao(${user.id},'${esc(user.nickname)}',${isAdmin})">
+            ${isAdmin ? '⬇️ Rebaixar para Usuário' : '⬆️ Promover a Administrador'}
+          </button>
+        </div>
+      </div>`;
+  } catch(e) { document.getElementById('admins-alert').innerHTML = '<div class="alert alert-error">Erro ao buscar usuário</div>'; }
+}
+
+async function adminExecutarPromocao(id, nickname, isAdmin) {
+  try {
+    const res = await fetch('/api/admin/promover', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id_usuario:id}) });
+    const data = await res.json();
+    if (data.error) { showToast(data.error, 'error'); return; }
+    showToast(isAdmin ? `${nickname} rebaixado para usuário.` : `${nickname} promovido a administrador!`);
+    navigateTo('admin');
+  } catch(e) { showToast('Erro ao alterar cargo', 'error'); }
+}
+
+async function adminRebaixar(id, nickname) {
+  if (!confirm(`Rebaixar ${nickname} para usuário?`)) return;
+  adminExecutarPromocao(id, nickname, true);
+}
+
+// =================== ADMIN: REIVINDICAÇÕES ===================
+async function loadAdminReivindicacoes() {
+  const container = document.getElementById('adm-reiv');
+  if (!container) return;
+  try {
+    const res = await fetch('/api/admin/reivindicacoes');
+    const rows = await res.json();
+    if (rows.error) { container.innerHTML = `<p class="text-muted p-4">Erro ao carregar</p>`; return; }
+    if (rows.length === 0) {
+      container.innerHTML = `<div class="card p-6 text-center text-muted">✅ Nenhuma reivindicação pendente</div>`;
+      return;
+    }
+
+    let html = `<div class="font-orbitron font-bold mb-3" style="font-size:16px;">📋 Reivindicações Pendentes (${rows.length})</div>`;
+    rows.forEach(r => {
+      const claimId = r.id_usuario + '_' + r.id_achievement;
+      html += `<div class="card p-5 mb-3" style="border-left:4px solid var(--accent);">`;
+      html += `<div class="flex items-center justify-between mb-3 flex-wrap gap-2">`;
+      html += `<div class="flex items-center gap-3">
+        <div class="avatar avatar-sm gradient-main">${esc(r.nickname.charAt(0).toUpperCase())}</div>
+        <div>
+          <div class="font-bold text-sm">${esc(r.nickname)}</div>
+          <div class="text-xs text-muted">${formatDate(r.data_conquista)}</div>
+        </div>
+      </div>`;
+      html += `<div class="flex gap-2">
+        <button class="btn btn-sm" style="background:var(--success);color:#fff;padding:6px 14px;" onclick="adminReivindicar('${claimId}','aprovar')">✅ Aprovar</button>
+        <button class="btn btn-danger btn-sm" style="padding:6px 14px;" onclick="adminReivindicar('${claimId}','rejeitar')">❌ Rejeitar</button>
+      </div>`;
+      html += `</div>`;
+      html += `<div class="flex gap-3 flex-wrap text-sm">`;
+      html += `<span>🏆 <strong>${esc(r.achievement_nome)}</strong></span>`;
+      if (r.jogo_nome) html += `<span class="text-muted">🎮 ${esc(r.jogo_nome)}</span>`;
+      html += `<span class="badge badge-points">${r.pontos} pts</span>`;
+      html += `</div>`;
+      if (r.video_url) {
+        html += `<div class="mt-3 p-3" style="background:rgba(30,41,59,0.4);border-radius:8px;">`;
+        html += `<div class="text-xs text-muted mb-1">🎬 Vídeo de Comprovação:</div>`;
+        html += `<a href="${esc(r.video_url)}" target="_blank" rel="noopener" class="text-primary text-sm" style="word-break:break-all;">${esc(r.video_url)}</a>`;
+        html += `</div>`;
+      } else {
+        html += `<div class="mt-2 text-xs text-muted" style="color:#f87171;">⚠️ Nenhum vídeo enviado</div>`;
+      }
+      html += `</div>`;
+    });
+    container.innerHTML = html;
+  } catch(e) { container.innerHTML = `<p class="text-muted p-4">Erro ao carregar reivindicações</p>`; }
+}
 
 // =================== FRIENDS ===================
 function renderFriendsFab() {
@@ -1280,7 +1450,6 @@ async function renderFriendsPanel() {
 
     html += `<div class="flex gap-1" style="padding:12px 12px 8px;"><button class="tab active" id="fr-tab-friends" onclick="switchFrTab('friends')" style="flex:1;font-size:12px;">Amigos</button><button class="tab" id="fr-tab-requests" onclick="switchFrTab('requests')" style="flex:1;font-size:12px;position:relative;">Pedidos${pending.length>0?`<span class="fab-badge" style="position:absolute;top:-4px;right:-2px;">${pending.length}</span>`:''}</button><button class="tab" id="fr-tab-add" onclick="switchFrTab('add')" style="flex:1;font-size:12px;">Adicionar</button></div>`;
 
-    // Friends list
     html += `<div id="fr-friends" style="flex:1;overflow-y:auto;padding:4px 8px;">`;
     friends.forEach(f => {
       const initial = f.nickname.charAt(0).toUpperCase();
@@ -1295,7 +1464,6 @@ async function renderFriendsPanel() {
     if (friends.length === 0) html += `<div class="text-center p-6 text-muted text-xs">Nenhum amigo ainda</div>`;
     html += `</div>`;
 
-    // Requests
     html += `<div id="fr-requests" class="hidden" style="flex:1;overflow-y:auto;padding:4px 8px;">`;
     pending.forEach(r => {
       html += `<div class="flex items-center justify-between" style="padding:12px;border-radius:8px;">`;
@@ -1305,7 +1473,6 @@ async function renderFriendsPanel() {
     if (pending.length === 0) html += `<div class="text-center p-6 text-muted text-xs">Nenhum pedido pendente</div>`;
     html += `</div>`;
 
-    // Add
     html += `<div id="fr-add" class="hidden" style="flex:1;overflow-y:auto;padding:12px;">`;
     html += `<div style="position:relative;margin-bottom:12px;"><input class="input" id="fr-search" placeholder="Buscar por nickname..." style="padding-left:36px;border-radius:999px;"><span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text-muted);">🔍</span></div>`;
     html += `<div id="fr-search-result"></div></div>`;
@@ -1401,7 +1568,6 @@ async function sendChatMsg() {
 }
 
 // =================== ACHIEVEMENT REIVINDICACAO ===================
-
 let _reivindicarAchId = null;
 let _reivindicarAchNome = '';
 
@@ -1446,15 +1612,13 @@ async function enviarReivindicacao() {
     const data = await res.json();
     if (data.error) { document.getElementById('reivindicar-alert').innerHTML = `<div class="alert alert-error">${esc(data.error)}</div>`; return; }
     closeReivindicarModal();
-    showToast('Reivindicacao enviada! Aguarde a aprovacao de um administrador.');
-    // Refresh current page to update UI
+    showToast('Reivindicação enviada! Aguarde a aprovação de um administrador.');
     if (currentPage === 'jogoDetail' && window._pageData) navigateTo('jogoDetail', window._pageData);
     else if (currentPage === 'achievements') navigateTo('achievements');
-  } catch(e) { showToast('Erro ao enviar reivindicacao', 'error'); }
+  } catch(e) { showToast('Erro ao enviar reivindicação', 'error'); }
 }
 
 // =================== ACHIEVEMENT RANKING PAGE ===================
-
 async function renderAchievementRanking(el) {
   const achId = window._pageData;
   showLoading();
@@ -1469,12 +1633,11 @@ async function renderAchievementRanking(el) {
     html += `<h2 class="font-orbitron font-black mb-2" style="font-size:22px;">🏆 ${esc(a.nome)}</h2>`;
     if (a.descricao) html += `<p class="text-muted text-sm mb-2">${esc(a.descricao)}</p>`;
     const db = a.dificuldade === 'facil' ? 'badge-easy' : a.dificuldade === 'medio' ? 'badge-medium' : 'badge-hard';
-    const dl = a.dificuldade === 'facil' ? 'Facil' : a.dificuldade === 'medio' ? 'Medio' : 'Dificil';
+    const dl = a.dificuldade === 'facil' ? 'Fácil' : a.dificuldade === 'medio' ? 'Médio' : 'Difícil';
     html += `<div class="flex gap-2"><span class="badge ${db}">${dl}</span><span class="badge badge-points">${a.pontos} pts</span><span class="badge badge-info">🎮 ${esc(a.jogo_nome||'Geral')}</span></div>`;
     html += `<div class="mt-3"><span class="badge badge-easy" style="padding:8px 14px;font-size:13px;">✅ ${data.totalConquistadores} jogadores conquistaram</span></div>`;
     html += `</div>`;
 
-    // Ranking
     html += `<h3 class="font-orbitron font-bold mb-4" style="font-size:20px;">🏅 Ranking - Quem Conquistou Primeiro</h3>`;
     if (data.ranking.length > 0) {
       html += `<div class="card" style="overflow:hidden;"><div class="table-wrap"><table><thead><tr><th>#</th><th>Jogador</th><th>Data da Conquista</th></tr></thead><tbody>`;
@@ -1488,17 +1651,16 @@ async function renderAchievementRanking(el) {
       html += `<div class="text-center p-6 text-muted">Nenhum jogador conquistou ainda</div>`;
     }
 
-    // Pending claims (admin only)
-    const pendentesVisible = currentUser && currentUser.tipo === 'administrador';
-    if (pendentesVisible) {
-      html += `<h3 class="font-orbitron font-bold mb-4 mt-6" style="font-size:20px;">📋 Reivindicacoes Pendentes (${data.pendentes.length})</h3>`;
+    // Pending claims visible to admins
+    if (currentUser && currentUser.tipo === 'administrador') {
+      html += `<h3 class="font-orbitron font-bold mb-4 mt-6" style="font-size:20px;">📋 Reivindicações Pendentes (${data.pendentes.length})</h3>`;
       if (data.pendentes.length > 0) {
         data.pendentes.forEach(r => {
           const claimId = r.id_usuario + '_' + r.id_achievement;
-          html += `<div class="card p-4 mb-2 flex items-center justify-between"><div class="flex items-center gap-3"><div class="avatar avatar-sm gradient-main">${esc(r.nickname.charAt(0).toUpperCase())}</div><div><span class="font-bold text-sm">${esc(r.nickname)}</span><div class="text-xs text-muted">${formatDate(r.data_conquista)}${r.video_url ? ' • 🎬 Video enviado' : ''}</div></div></div><div class="flex gap-1"><button class="btn btn-sm" style="background:var(--success);color:#fff;padding:4px 8px;" onclick="adminReivindicar('${claimId}','aprovar')">✓</button><button class="btn btn-danger btn-sm" style="padding:4px 8px;" onclick="adminReivindicar('${claimId}','rejeitar')">✕</button></div></div>`;
+          html += `<div class="card p-4 mb-2 flex items-center justify-between"><div class="flex items-center gap-3"><div class="avatar avatar-sm gradient-main">${esc(r.nickname.charAt(0).toUpperCase())}</div><div><span class="font-bold text-sm">${esc(r.nickname)}</span><div class="text-xs text-muted">${formatDate(r.data_conquista)}${r.video_url ? ' • 🎬 Vídeo enviado' : ''}</div></div></div><div class="flex gap-1"><button class="btn btn-sm" style="background:var(--success);color:#fff;padding:4px 8px;" onclick="adminReivindicar('${claimId}','aprovar')">✓</button><button class="btn btn-danger btn-sm" style="padding:4px 8px;" onclick="adminReivindicar('${claimId}','rejeitar')">✕</button></div></div>`;
         });
       } else {
-        html += `<div class="text-center p-6 text-muted">Nenhuma reivindicacao pendente</div>`;
+        html += `<div class="text-center p-6 text-muted">Nenhuma reivindicação pendente</div>`;
       }
     }
 
@@ -1513,17 +1675,17 @@ async function adminReivindicar(id, acao) {
     const res = await fetch(`/api/admin/reivindicacoes/${id}`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ acao }) });
     const data = await res.json();
     if (data.error) { showToast(data.error, 'error'); return; }
-    showToast(acao === 'aprovar' ? 'Reivindicacao aprovada!' : 'Reivindicacao rejeitada.');
-    navigateTo('achievementRanking', window._pageData);
-  } catch(e) { showToast('Erro ao processar reivindicacao', 'error'); }
+    showToast(acao === 'aprovar' ? 'Reivindicação aprovada! Pontos adicionados.' : 'Reivindicação rejeitada.');
+    // Refresh whichever view is active
+    if (currentPage === 'achievementRanking') navigateTo('achievementRanking', window._pageData);
+    else loadAdminReivindicacoes();
+  } catch(e) { showToast('Erro ao processar reivindicação', 'error'); }
 }
 
 // =================== ADMIN ADD JOGO/ACH ===================
-
 async function adminAddJogo() {
   const nome = document.getElementById('admin-jogo-nome').value.trim();
   if (!nome) { showToast('Nome obrigatório', 'error'); return; }
-  // Collect achievements
   const achievements = [];
   const rows = document.querySelectorAll('.admin-ach-row');
   rows.forEach(row => {
@@ -1581,8 +1743,11 @@ function removeAchRow(id) {
 }
 
 // =================== DENUNCIAS ===================
-
+// FIX: Only regular users (non-admins) can report
 function denunciarUsuario(idDenunciado) {
+  if (!currentUser) { showToast('Faça login para denunciar', 'error'); return; }
+  if (currentUser.tipo === 'administrador') { showToast('Administradores não podem fazer denúncias.', 'error'); return; }
+
   const modal = document.getElementById('auth-modal');
   modal.classList.remove('hidden');
   modal.innerHTML = `
