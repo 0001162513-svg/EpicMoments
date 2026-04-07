@@ -16,7 +16,7 @@ CREATE TABLE usuario (
     senha VARCHAR(100) NOT NULL,
     cpf VARCHAR(11),
     data_nascimento DATE,
-    genero ENUM('M','F') DEFAULT 'M',
+    genero ENUM('M','F','O','N') DEFAULT 'M',
     descricao_perfil TEXT,
     foto_perfil VARCHAR(500),
     cor_banner VARCHAR(7) DEFAULT '#6366f1',
@@ -64,7 +64,7 @@ CREATE TABLE usuario_achievement (
     id_usuario INT,
     id_achievement INT,
     estado ENUM('pendente','aprovado','rejeitado') DEFAULT 'pendente',
-    video_url VARCHAR(500),
+    video_url VARCHAR(500) NOT NULL DEFAULT'https://www.youtube.com/',
     data_conquista TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (id_usuario) REFERENCES usuario(id_usuario) ON DELETE CASCADE,
     FOREIGN KEY (id_achievement) REFERENCES achievement(id_achievement) ON DELETE CASCADE
