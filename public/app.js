@@ -15,7 +15,7 @@ async function init() {
     const res = await fetch('/api/me');
     const data = await res.json();
     if (data.user) currentUser = data.user;
-  } catch(e) {}
+  } catch (e) { }
   renderSidebar();
   renderMobileUser();
   renderFriendsFab();
@@ -53,8 +53,12 @@ function navigateTo(page, data) {
 function renderSidebar() {
   const nav = document.getElementById('sidebar-nav');
   const isLight = document.documentElement.getAttribute('data-theme') === 'light';
+  // Atualiza o botão fixo na logo
+  const themeBtn = document.getElementById('theme-toggle-btn');
+  if (themeBtn) themeBtn.textContent = isLight ? '🌙' : '☀️';
+
   let html = '';
-  html += `<button class="theme-toggle" onclick="toggleTheme()">${isLight ? '🌙' : '☀️'} ${isLight ? 'Tema Escuro' : 'Tema Claro'}</button>`;
+
   navItems.forEach(item => {
     html += `<button class="${currentPage === item.id ? 'active' : ''}" onclick="navigateTo('${item.id}')">${item.icon} ${item.label}</button>`;
   });
@@ -98,7 +102,7 @@ function closeMobileSidebar() {
 function renderPage() {
   const el = document.getElementById('page-content');
   el.innerHTML = '<div class="text-center p-6 text-muted">Carregando...</div>';
-  switch(currentPage) {
+  switch (currentPage) {
     case 'home': renderHome(el); break;
     case 'jogos': renderJogos(el); break;
     case 'jogoDetail': renderJogoDetail(el); break;
@@ -124,6 +128,7 @@ function renderPage() {
 function showAuthModal() {
   const modal = document.getElementById('auth-modal');
   modal.classList.remove('hidden');
+
   modal.innerHTML = `
     <div class="modal-overlay" onclick="closeAuthModal()">
       <div class="modal" onclick="event.stopPropagation()">
@@ -146,9 +151,9 @@ function showAuthModal() {
           <div class="mb-3"><label class="label">Nome Completo *</label><input class="input" type="text" id="reg-nome"></div>
           <div class="mb-3"><label class="label">Nickname *</label><input class="input" type="text" id="reg-nick" maxlength="25"></div>
           <div class="mb-3"><label class="label">E-mail *</label><input class="input" type="email" id="reg-email"></div>
-          <div class="mb-3"><label class="label">CPF (apenas números)</label><input class="input" type="text" id="reg-cpf" maxlength="11"></div>
-          <div class="mb-3"><label class="label">Data Nascimento</label><input class="input" type="date" id="reg-nasc"></div>
-          <div class="mb-3"><label class="label">Gênero</label><select class="input" id="reg-genero"><option value="M">Masculino</option><option value="F">Feminino</option></select></div>
+          <div class="mb-3"><label class="label">CPF*</label><input class="input" type="text" id="reg-cpf" maxlength="14" placeholder="000.000.000-00" oninput="mascaraCPF(this)"></div>
+          <div class="mb-3"><label class="label">Data Nascimento *</label><input class="input" type="date" id="reg-nasc" required></div>
+          <div class="mb-3"><label class="label">Gênero</label><select class="input" id="reg-genero"><option value="M">Masculino</option><option value="F">Feminino</option> <option value="O">Outro</option> <option value="N">Não informar</option></select></div>
           <div class="mb-4"><label class="label">Senha * (mín. 4 chars, 1 maiúscula)</label><input class="input" type="password" id="reg-senha" minlength="4"></div>
           <div class="mb-4 flex items-center gap-2">
             <input type="checkbox" id="reg-termos" style="width:16px;height:16px;cursor:pointer;">
@@ -160,6 +165,7 @@ function showAuthModal() {
     </div>
   `;
 }
+
 
 function closeAuthModal() { document.getElementById('auth-modal').classList.add('hidden'); }
 
@@ -183,7 +189,7 @@ async function doLogin() {
   const senha = document.getElementById('login-senha').value;
   if (!email || !senha) { document.getElementById('auth-alert').innerHTML = '<div class="alert alert-error">Preencha e-mail e senha</div>'; return; }
   try {
-    const res = await fetch('/api/login', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({email, senha}) });
+    const res = await fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, senha }) });
     const data = await res.json();
     if (data.error === 'email_not_found') {
       document.getElementById('auth-alert').innerHTML = `<div class="alert alert-error">${esc(data.message)} <a href="#" onclick="event.preventDefault();switchAuthTab('register');document.getElementById('reg-email').value='${esc(email)}';" class="text-primary font-bold" style="text-decoration:none;">Criar conta</a></div>`;
@@ -203,7 +209,22 @@ async function doLogin() {
     renderMobileUser();
     renderFriendsFab();
     navigateTo('home');
-  } catch(e) { document.getElementById('auth-alert').innerHTML = `<div class="alert alert-error">Erro de conexão com o servidor</div>`; }
+  } catch (e) { document.getElementById('auth-alert').innerHTML = `<div class="alert alert-error">Erro de conexão com o servidor</div>`; }
+}
+
+function validarCPF(cpf) {
+  cpf = cpf.replace(/\D/g, '');
+  if (cpf.length !== 11 || /^(\d)\1{10}$/.test(cpf)) return false;
+  let soma = 0;
+  for (let i = 0; i < 9; i++) soma += parseInt(cpf[i]) * (10 - i);
+  let resto = (soma * 10) % 11;
+  if (resto === 10 || resto === 11) resto = 0;
+  if (resto !== parseInt(cpf[9])) return false;
+  soma = 0;
+  for (let i = 0; i < 10; i++) soma += parseInt(cpf[i]) * (11 - i);
+  resto = (soma * 10) % 11;
+  if (resto === 10 || resto === 11) resto = 0;
+  return resto === parseInt(cpf[10]);
 }
 
 async function doRegister() {
@@ -216,24 +237,47 @@ async function doRegister() {
   if (!nome || !nickname || !email || !senha) { document.getElementById('auth-alert').innerHTML = '<div class="alert alert-error">Preencha todos os campos obrigatórios</div>'; return; }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { document.getElementById('auth-alert').innerHTML = '<div class="alert alert-error">E-mail inválido</div>'; return; }
   if (nickname.length < 3) { document.getElementById('auth-alert').innerHTML = '<div class="alert alert-error">Nickname deve ter no mínimo 3 caracteres</div>'; return; }
+  const dataNasc = document.getElementById('reg-nasc').value;
+  if (!dataNasc) {
+    document.getElementById('auth-alert').innerHTML = '<div class="alert alert-error">Data de nascimento é obrigatória</div>';
+    return;
+  }
+  const nascimento = new Date(dataNasc);
+  const hoje = new Date();
+  const idade = hoje.getFullYear() - nascimento.getFullYear();
+  const aniversarioPassou =
+    hoje.getMonth() > nascimento.getMonth() ||
+    (hoje.getMonth() === nascimento.getMonth() && hoje.getDate() >= nascimento.getDate());
+  const idadeReal = aniversarioPassou ? idade : idade - 1;
+  if (idadeReal < 18) {
+    document.getElementById('auth-alert').innerHTML = '<div class="alert alert-error">Você precisa ter pelo menos 18 anos para se cadastrar</div>';
+    return;
+  }
+
+  // Validação de CPF (se preenchido)
+  const cpf = document.getElementById('reg-cpf').value.replace(/\D/g, '');
+  if (cpf && !validarCPF(cpf)) {
+    document.getElementById('auth-alert').innerHTML = '<div class="alert alert-error">CPF inválido</div>';
+    return;
+  }
   const body = {
     nome: document.getElementById('reg-nome').value,
     nickname: document.getElementById('reg-nick').value,
     email: document.getElementById('reg-email').value,
-    cpf: document.getElementById('reg-cpf').value,
+    cpf: document.getElementById('reg-cpf').value.replace(/\D/g, ''),
     dataNascimento: document.getElementById('reg-nasc').value || null,
     genero: document.getElementById('reg-genero').value,
     senha: document.getElementById('reg-senha').value,
     aceitouTermos: true,
   };
   try {
-    const res = await fetch('/api/register', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    const res = await fetch('/api/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const data = await res.json();
     if (data.error) { document.getElementById('auth-alert').innerHTML = `<div class="alert alert-error">${esc(data.error)}</div>`; return; }
     currentUser = data.user;
     document.getElementById('auth-alert').innerHTML = `<div class="alert alert-success">Conta criada com sucesso!</div>`;
     setTimeout(() => { closeAuthModal(); renderSidebar(); renderMobileUser(); renderFriendsFab(); navigateTo('home'); }, 1000);
-  } catch(e) { document.getElementById('auth-alert').innerHTML = `<div class="alert alert-error">Erro de conexão com o servidor</div>`; }
+  } catch (e) { document.getElementById('auth-alert').innerHTML = `<div class="alert alert-error">Erro de conexão com o servidor</div>`; }
 }
 
 async function logout() {
@@ -350,16 +394,16 @@ async function renderJogos(el) {
     html += `<div class="grid grid-2">`;
     jogos.forEach(j => {
       html += `<div class="card cursor-pointer" onclick="navigateTo('jogoDetail',${j.id_jogo})" style="overflow:hidden;">`;
-      html += `<img src="${esc(j.imagem||'/img/logo-icon.png')}" alt="${esc(j.nome)}" style="width:100%;height:160px;object-fit:cover;" onerror="this.src='/img/logo-icon.png'">`;
+      html += `<img src="${esc(j.imagem || '/img/logo-icon.png')}" alt="${esc(j.nome)}" style="width:100%;height:160px;object-fit:cover;" onerror="this.src='/img/logo-icon.png'">`;
       html += `<div class="p-5"><div class="font-orbitron font-bold text-sm mb-2">${esc(j.nome)}</div>`;
-      html += `<p class="text-muted text-xs mb-2 line-clamp-2">${esc(j.descricao||'')}</p>`;
-      html += `<p class="text-xs text-muted mb-3">Dev: ${esc(j.desenvolvedor||'')}</p>`;
-      html += `<div class="flex gap-2"><span class="badge badge-points">👤 ${j.totalJogadores||0}</span><span class="badge badge-easy">🏆 ${j.totalAchievements||0}</span></div>`;
+      html += `<p class="text-muted text-xs mb-2 line-clamp-2">${esc(j.descricao || '')}</p>`;
+      html += `<p class="text-xs text-muted mb-3">Dev: ${esc(j.desenvolvedor || '')}</p>`;
+      html += `<div class="flex gap-2"><span class="badge badge-points">👤 ${j.totalJogadores || 0}</span><span class="badge badge-easy">🏆 ${j.totalAchievements || 0}</span></div>`;
       html += `</div></div>`;
     });
     html += `</div></div>`;
     el.innerHTML = html;
-  } catch(e) { el.innerHTML = `<div class="text-center p-6 text-muted">Erro ao carregar jogos. Verifique a conexão com o servidor.</div>`; }
+  } catch (e) { el.innerHTML = `<div class="text-center p-6 text-muted">Erro ao carregar jogos. Verifique a conexão com o servidor.</div>`; }
   hideLoading();
 }
 
@@ -377,17 +421,17 @@ async function renderJogoDetail(el) {
     let html = `<div class="animate-in" style="max-width:900px;margin:0 auto;">`;
     html += `<button class="btn btn-secondary btn-sm mb-4" onclick="navigateTo('jogos')">← Voltar aos Jogos</button>`;
     html += `<div class="card" style="overflow:hidden;margin-bottom:24px;">`;
-    html += `<img src="${esc(j.imagem||'/img/logo-icon.png')}" alt="${esc(j.nome)}" style="width:100%;height:200px;object-fit:cover;" onerror="this.src='/img/logo-icon.png'">`;
+    html += `<img src="${esc(j.imagem || '/img/logo-icon.png')}" alt="${esc(j.nome)}" style="width:100%;height:200px;object-fit:cover;" onerror="this.src='/img/logo-icon.png'">`;
     html += `<div class="p-6"><h2 class="font-orbitron font-black mb-2" style="font-size:24px;">${esc(j.nome)}</h2>`;
-    html += `<p class="text-muted text-sm mb-3">${esc(j.descricao||'')}</p>`;
-    html += `<p class="text-xs text-muted">Desenvolvedor: ${esc(j.desenvolvedor||'')}</p>`;
-    html += `<div class="flex gap-2 mt-3"><span class="badge badge-points">👤 ${j.totalJogadores||0} jogadores</span><span class="badge badge-easy">🏆 ${j.totalAchievements||0} achievements</span></div>`;
+    html += `<p class="text-muted text-sm mb-3">${esc(j.descricao || '')}</p>`;
+    html += `<p class="text-xs text-muted">Desenvolvedor: ${esc(j.desenvolvedor || '')}</p>`;
+    html += `<div class="flex gap-2 mt-3"><span class="badge badge-points">👤 ${j.totalJogadores || 0} jogadores</span><span class="badge badge-easy">🏆 ${j.totalAchievements || 0} achievements</span></div>`;
     let vinculadosIds = [];
     if (currentUser) {
       try {
         const vincRes = await fetch('/api/jogos/vinculados');
         vinculadosIds = await vincRes.json();
-      } catch(e) {}
+      } catch (e) { }
     }
     const isVinculado = vinculadosIds.includes(jogoId);
     if (currentUser) {
@@ -415,18 +459,18 @@ async function renderJogoDetail(el) {
     if (jogoAchs.length === 0) html += `<p class="text-muted text-center">Nenhum achievement para este jogo</p>`;
     html += `</div></div>`;
     el.innerHTML = html;
-  } catch(e) { el.innerHTML = `<div class="text-center p-6 text-muted">Erro ao carregar jogo</div>`; }
+  } catch (e) { el.innerHTML = `<div class="text-center p-6 text-muted">Erro ao carregar jogo</div>`; }
   hideLoading();
 }
 
 async function vincularJogo(id) {
   try {
-    const res = await fetch('/api/jogos/vincular', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({id_jogo: id}) });
+    const res = await fetch('/api/jogos/vincular', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id_jogo: id }) });
     const data = await res.json();
     if (data.error) { showToast(data.error, 'error'); return; }
     showToast('Jogo vinculado ao seu perfil!');
     navigateTo('jogoDetail', id);
-  } catch(e) { showToast('Erro ao vincular jogo', 'error'); }
+  } catch (e) { showToast('Erro ao vincular jogo', 'error'); }
 }
 
 // =================== ACHIEVEMENTS ===================
@@ -444,12 +488,12 @@ async function renderAchievements(el) {
       const dl = a.dificuldade === 'facil' ? 'Fácil' : a.dificuldade === 'medio' ? 'Médio' : 'Difícil';
       html += `<div class="card p-5 ach-item cursor-pointer" data-dif="${a.dificuldade}" onclick="navigateTo('achievementRanking',${a.id_achievement})"><div class="font-orbitron font-bold text-sm mb-2">🏆 ${esc(a.nome)}</div>`;
       if (a.descricao) html += `<p class="text-muted text-xs mb-2">${esc(a.descricao)}</p>`;
-      html += `<p class="text-muted text-xs mb-2">Jogo: ${esc(a.jogo_nome||'Geral')}</p>`;
+      html += `<p class="text-muted text-xs mb-2">Jogo: ${esc(a.jogo_nome || 'Geral')}</p>`;
       html += `<div class="flex gap-2"><span class="badge ${db}">${dl}</span><span class="badge badge-points">${a.pontos} pts</span></div></div>`;
     });
     html += `</div></div>`;
     el.innerHTML = html;
-  } catch(e) { el.innerHTML = `<div class="text-center p-6 text-muted">Erro ao carregar achievements</div>`; }
+  } catch (e) { el.innerHTML = `<div class="text-center p-6 text-muted">Erro ao carregar achievements</div>`; }
   hideLoading();
 }
 
@@ -476,7 +520,7 @@ async function renderRanking(el) {
     html += `<div class="card" style="overflow:hidden;" id="ranking-table">${buildRankingTable(globalData)}</div>`;
     html += `</div>`;
     el.innerHTML = html;
-  } catch(e) { el.innerHTML = `<div class="text-center p-6 text-muted">Erro ao carregar ranking</div>`; }
+  } catch (e) { el.innerHTML = `<div class="text-center p-6 text-muted">Erro ao carregar ranking</div>`; }
   hideLoading();
 }
 
@@ -484,7 +528,7 @@ function buildRankingTable(data) {
   let html = `<div class="table-wrap"><table><thead><tr><th>#</th><th>Jogador</th><th>Pontos</th></tr></thead><tbody>`;
   data.forEach((r, i) => {
     const rc = i === 0 ? 'rank-1' : i === 1 ? 'rank-2' : i === 2 ? 'rank-3' : '';
-    const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i+1);
+    const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i + 1);
     html += `<tr style="cursor:pointer;" onclick="navigateTo('userProfile',${r.id})"><td class="font-orbitron font-black ${rc}" style="font-size:18px;">${medal}</td><td class="font-bold">${esc(r.nickname)}</td><td><span class="badge badge-points">${r.pontos_usuario} pts</span></td></tr>`;
   });
   if (data.length === 0) html += `<tr><td colspan="3" class="text-center text-muted" style="padding:32px;">Sem dados</td></tr>`;
@@ -524,7 +568,7 @@ async function renderGuilds(el) {
     });
     html += `</div></div>`;
     el.innerHTML = html;
-  } catch(e) { el.innerHTML = `<div class="text-center p-6 text-muted">Erro ao carregar comunidades</div>`; }
+  } catch (e) { el.innerHTML = `<div class="text-center p-6 text-muted">Erro ao carregar comunidades</div>`; }
   hideLoading();
 }
 
@@ -535,12 +579,12 @@ async function createGuild() {
   const descricao = document.getElementById('guild-desc').value.trim();
   if (!nome) { showToast('Nome obrigatório', 'error'); return; }
   try {
-    const res = await fetch('/api/comunidades', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({nome, descricao}) });
+    const res = await fetch('/api/comunidades', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nome, descricao }) });
     const data = await res.json();
     if (data.error) { showToast(data.error, 'error'); return; }
     showToast('Comunidade criada com sucesso!');
     navigateTo('guilds');
-  } catch(e) { showToast('Erro ao criar comunidade', 'error'); }
+  } catch (e) { showToast('Erro ao criar comunidade', 'error'); }
 }
 
 async function renderComunidadeDetail(el) {
@@ -593,8 +637,8 @@ async function renderComunidadeDetail(el) {
         <div class="flex items-center justify-between gap-3">
           <div><div class="font-orbitron font-bold text-sm mb-1">${esc(t.titulo)}</div>
           <p class="text-xs text-muted mb-2">por <span class="text-primary">${esc(t.autor_nome)}</span> • ${new Date(t.created_at).toLocaleDateString('pt-BR')}</p>
-          <p class="text-sm line-clamp-2">${esc(t.conteudo||'')}</p></div>
-          <div class="text-muted text-xs shrink-0">💬 ${(t.respostas||[]).length}</div>
+          <p class="text-sm line-clamp-2">${esc(t.conteudo || '')}</p></div>
+          <div class="text-muted text-xs shrink-0">💬 ${(t.respostas || []).length}</div>
         </div>
       </div>`;
     });
@@ -617,7 +661,7 @@ async function renderComunidadeDetail(el) {
     el.innerHTML = html;
     window._comData = data;
     window._comCanPost = canPost;
-  } catch(e) { el.innerHTML = `<div class="text-center p-6 text-muted">Erro ao carregar comunidade</div>`; }
+  } catch (e) { el.innerHTML = `<div class="text-center p-6 text-muted">Erro ao carregar comunidade</div>`; }
   hideLoading();
 }
 
@@ -635,7 +679,7 @@ async function pedirEntrada(comId) {
     if (data.error) { showToast(data.error, 'error'); return; }
     showToast('Candidatura enviada com sucesso! Aguarde a aprovação.');
     navigateTo('comunidadeDetail', comId);
-  } catch(e) { showToast('Erro ao enviar candidatura', 'error'); }
+  } catch (e) { showToast('Erro ao enviar candidatura', 'error'); }
 }
 
 async function createPost(comId) {
@@ -643,12 +687,12 @@ async function createPost(comId) {
   const conteudo = document.getElementById('post-conteudo').value.trim();
   if (!titulo) { showToast('Título obrigatório', 'error'); return; }
   try {
-    const res = await fetch('/api/topicos', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({id_comunidade: comId, titulo, conteudo}) });
+    const res = await fetch('/api/topicos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id_comunidade: comId, titulo, conteudo }) });
     const data = await res.json();
     if (data.error) { showToast(data.error, 'error'); return; }
     showToast('Postagem criada!');
     navigateTo('comunidadeDetail', comId);
-  } catch(e) { showToast('Erro ao criar postagem', 'error'); }
+  } catch (e) { showToast('Erro ao criar postagem', 'error'); }
 }
 
 function showTopic(comId, topicId) {
@@ -661,9 +705,9 @@ function showTopic(comId, topicId) {
   html += `<button class="btn btn-secondary btn-sm mb-4" onclick="navigateTo('comunidadeDetail',${comId})">← Voltar ao Fórum</button>`;
   html += `<div class="card p-6 mb-4"><h2 class="font-orbitron font-bold mb-2" style="font-size:18px;">${esc(topic.titulo)}</h2>`;
   html += `<p class="text-xs text-muted mb-3">por <span class="text-primary font-bold">${esc(topic.autor_nome)}</span> • ${new Date(topic.created_at).toLocaleDateString('pt-BR')}</p>`;
-  html += `<p class="text-sm" style="line-height:1.7;">${esc(topic.conteudo||'')}</p></div>`;
-  html += `<h3 class="font-orbitron font-bold text-sm mb-3">💬 Respostas (${(topic.respostas||[]).length})</h3>`;
-  (topic.respostas||[]).forEach(r => {
+  html += `<p class="text-sm" style="line-height:1.7;">${esc(topic.conteudo || '')}</p></div>`;
+  html += `<h3 class="font-orbitron font-bold text-sm mb-3">💬 Respostas (${(topic.respostas || []).length})</h3>`;
+  (topic.respostas || []).forEach(r => {
     html += `<div class="card p-4 mb-2" style="margin-left:16px;border-left:2px solid rgba(129,140,248,0.3);">`;
     html += `<p class="text-xs text-muted mb-1"><span class="text-primary font-bold">${esc(r.autor_nome)}</span> • ${new Date(r.created_at).toLocaleDateString('pt-BR')}</p>`;
     html += `<p class="text-sm">${esc(r.texto)}</p></div>`;
@@ -680,7 +724,7 @@ function showTopic(comId, topicId) {
 async function sendReply(comId, topicId) {
   const texto = document.getElementById('reply-text').value;
   if (!texto) return;
-  await fetch('/api/respostas', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({id_topico: topicId, texto}) });
+  await fetch('/api/respostas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id_topico: topicId, texto }) });
   navigateTo('comunidadeDetail', comId);
 }
 
@@ -695,21 +739,23 @@ async function renderEnquetes(el) {
     let html = `<div class="animate-in" style="max-width:900px;margin:0 auto;">`;
     html += `<h1 class="font-orbitron font-black mb-6" style="font-size:28px;">📊 Enquetes de Achievements</h1>`;
 
-    if (currentUser) {
-      html += `<div class="card p-6 mb-6">`;
-      html += `<div class="font-orbitron font-bold mb-3">📝 Sugerir Novo Achievement</div>`;
-      html += `<p class="text-muted text-sm mb-4">Sugira um novo achievement para a comunidade votar. Se atingir 70%+ de aprovação, será adicionado ao catálogo!</p>`;
-      html += `<div class="grid" style="grid-template-columns:1fr 1fr;gap:12px;">`;
-      html += `<div class="mb-3"><label class="label">Nome do Achievement *</label><input class="input" id="enq-nome" placeholder="Ex: Penta Kill"></div>`;
-      html += `<div class="mb-3"><label class="label">Jogo</label><select class="input" id="enq-jogo"><option value="">Geral</option>${jogos.map(j => `<option value="${j.id_jogo}">${esc(j.nome)}</option>`).join('')}</select></div>`;
-      html += `<div class="mb-3" style="grid-column:1/-1;"><label class="label">Descrição</label><textarea class="input" id="enq-desc" rows="2" placeholder="Descreva o que precisa ser feito..."></textarea></div>`;
-      html += `<div class="mb-3"><label class="label">Dificuldade</label><select class="input" id="enq-dificuldade"><option value="facil">Fácil (15 pts)</option><option value="medio">Médio (30 pts)</option><option value="dificil">Difícil (50 pts)</option></select></div>`;
-      html += `<div class="mb-3"><label class="label">Pontos</label><input class="input" id="enq-pontos" type="number" min="1" value="15"></div>`;
-      html += `<div class="mb-3"><label class="label">Data Fim da Votação *</label><input class="input" id="enq-fim" type="date"></div>`;
-      html += `</div>`;
-      html += `<button class="btn btn-gold btn-sm" onclick="createEnquete()">📊 Criar Enquete</button>`;
-      html += `</div>`;
-    }
+if (currentUser) {
+  html += `<div class="mb-6">`;
+  html += `<button class="btn btn-primary" onclick="document.getElementById('form-sugerir').classList.toggle('hidden')">📝 Sugerir Novo Achievement</button>`;
+  html += `<div id="form-sugerir" class="hidden card p-6 mt-3 animate-in">`;
+  html += `<p class="text-muted text-sm mb-4">Sugira um novo achievement para a comunidade votar. Se atingir 70%+ de aprovação, será adicionado ao catálogo!</p>`;
+  html += `<div class="grid" style="grid-template-columns:1fr 1fr;gap:12px;">`;
+  html += `<div class="mb-3"><label class="label">Nome do Achievement *</label><input class="input" id="enq-nome" placeholder="Ex: Penta Kill"></div>`;
+  html += `<div class="mb-3"><label class="label">Jogo</label><select class="input" id="enq-jogo"><option value="">Geral</option>${jogos.map(j => `<option value="${j.id_jogo}">${esc(j.nome)}</option>`).join('')}</select></div>`;
+  html += `<div class="mb-3" style="grid-column:1/-1;"><label class="label">Descrição</label><textarea class="input" id="enq-desc" rows="2" placeholder="Descreva o que precisa ser feito..."></textarea></div>`;
+  html += `<div class="mb-3"><label class="label">Dificuldade</label><select class="input" id="enq-dificuldade"><option value="facil">Fácil (15 pts)</option><option value="medio">Médio (30 pts)</option><option value="dificil">Difícil (50 pts)</option></select></div>`;
+  html += `<div class="mb-3"><label class="label">Pontos</label><input class="input" id="enq-pontos" type="number" min="1" value="15"></div>`;
+  html += `<div class="mb-3"><label class="label">Data Fim da Votação *</label><input class="input" id="enq-fim" type="date"></div>`;
+  html += `</div>`;
+  html += `<button class="btn btn-gold btn-sm" onclick="createEnquete()">📊 Criar Enquete</button>`;
+  html += `</div>`; // fecha form-sugerir
+  html += `</div>`; // fecha mb-6
+}
 
     const now = new Date();
 
@@ -739,7 +785,7 @@ async function renderEnquetes(el) {
       html += `<div class="card p-5" style="${approved ? 'border:1px solid rgba(34,197,94,0.3);' : ''}">`;
       html += `<div class="font-orbitron font-bold text-sm mb-2">📊 ${esc(e.nome_achievement)}</div>`;
       if (e.descricao) html += `<p class="text-muted text-xs mb-2">${esc(e.descricao)}</p>`;
-      html += `<p class="text-muted text-xs">Jogo: ${esc(e.jogo_nome||'Geral')} | Fim: ${formatDate(e.data_fim)}</p>`;
+      html += `<p class="text-muted text-xs">Jogo: ${esc(e.jogo_nome || 'Geral')} | Fim: ${formatDate(e.data_fim)}</p>`;
       html += `<div class="flex gap-2 mt-2 mb-3 flex-wrap"><span class="badge ${statusBadge}">${statusText}</span><span class="badge badge-points">${e.percentual}% (${e.total_votos} votos)</span></div>`;
       html += `<div class="progress-bar mb-3"><div class="progress-fill" style="width:${e.percentual}%;background:${barColor};"></div></div>`;
 
@@ -758,12 +804,12 @@ async function renderEnquetes(el) {
     });
     html += `</div></div>`;
     el.innerHTML = html;
-  } catch(e) { el.innerHTML = `<div class="text-center p-6 text-muted">Erro ao carregar enquetes</div>`; }
+  } catch (e) { el.innerHTML = `<div class="text-center p-6 text-muted">Erro ao carregar enquetes</div>`; }
   hideLoading();
 }
 
 async function votarEnquete(id, voto) {
-  await fetch(`/api/enquetes/${id}/votar`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({voto}) });
+  await fetch(`/api/enquetes/${id}/votar`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ voto }) });
   navigateTo('enquetes');
 }
 
@@ -778,12 +824,12 @@ async function createEnquete() {
   if (!data_fim) { showToast('Data de fim da votação é obrigatória', 'error'); return; }
   const data_inicio = new Date().toISOString().split('T')[0];
   try {
-    const res = await fetch('/api/enquetes', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ nome_achievement, descricao, dificuldade, pontos, id_jogo, data_inicio, data_fim }) });
+    const res = await fetch('/api/enquetes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nome_achievement, descricao, dificuldade, pontos, id_jogo, data_inicio, data_fim }) });
     const data = await res.json();
     if (data.error) { showToast(data.error, 'error'); return; }
     showToast('Enquete criada com sucesso! A comunidade já pode votar.');
     navigateTo('enquetes');
-  } catch(e) { showToast('Erro ao criar enquete', 'error'); }
+  } catch (e) { showToast('Erro ao criar enquete', 'error'); }
 }
 
 // =================== TORNEIOS ===================
@@ -802,7 +848,7 @@ async function renderTorneios(el) {
       const jogos = await jogosRes.json();
       const achs = await achsRes.json();
       let jogosOpts = jogos.map(j => `<option value="${j.id_jogo}">${esc(j.nome)}</option>`).join('');
-      let achsOpts = '<option value="">Nenhum</option>' + achs.map(a => `<option value="${a.id_achievement}">${esc(a.nome)} (${esc(a.jogo_nome||'Geral')})</option>`).join('');
+      let achsOpts = '<option value="">Nenhum</option>' + achs.map(a => `<option value="${a.id_achievement}">${esc(a.nome)} (${esc(a.jogo_nome || 'Geral')})</option>`).join('');
 
       html += `<div id="create-torneio-form" class="hidden card p-5 mb-6 animate-in">
         <div class="font-orbitron font-bold text-sm mb-3">Novo Torneio</div>
@@ -828,16 +874,16 @@ async function renderTorneios(el) {
     torneios.forEach(t => {
       const active = new Date(t.data_fim) > new Date();
       html += `<div class="card p-5 cursor-pointer" onclick="navigateTo('torneioDetail',${t.id_torneio})">`;
-      html += `<div class="flex items-center justify-between mb-2"><div class="font-orbitron font-bold text-sm">🏟️ ${esc(t.nome)}</div><span class="badge ${active?'badge-easy':'badge-hard'}">${active?'🟢 Aberto':'🔴 Encerrado'}</span></div>`;
+      html += `<div class="flex items-center justify-between mb-2"><div class="font-orbitron font-bold text-sm">🏟️ ${esc(t.nome)}</div><span class="badge ${active ? 'badge-easy' : 'badge-hard'}">${active ? '🟢 Aberto' : '🔴 Encerrado'}</span></div>`;
       if (t.descricao) html += `<p class="text-muted text-xs mb-2 line-clamp-2">${esc(t.descricao)}</p>`;
-      html += `<p class="text-xs text-muted mb-1">🎮 ${esc(t.jogo_nome||'')} | 🏆 ${esc(t.achievement_nome||'')}</p>`;
+      html += `<p class="text-xs text-muted mb-1">🎮 ${esc(t.jogo_nome || '')} | 🏆 ${esc(t.achievement_nome || '')}</p>`;
       html += `<p class="text-xs text-muted mb-3">📅 ${formatDate(t.data_inicio)} às ${formatTime(t.hora_inicio)}</p>`;
       html += `<div class="flex gap-2 flex-wrap"><span class="badge badge-points">👤 ${t.inscritos}/${t.max_participantes}</span><span class="badge badge-medium">💰 R$${Number(t.taxa_inscricao).toFixed(2)}</span><span class="badge badge-easy">🥇 R$${Number(t.premio_1).toFixed(2)}</span></div>`;
       html += `</div>`;
     });
     html += `</div></div>`;
     el.innerHTML = html;
-  } catch(e) { el.innerHTML = `<div class="text-center p-6 text-muted">Erro ao carregar torneios</div>`; }
+  } catch (e) { el.innerHTML = `<div class="text-center p-6 text-muted">Erro ao carregar torneios</div>`; }
   hideLoading();
 }
 
@@ -861,12 +907,12 @@ async function createTorneio() {
   if (new Date(data_fim) <= new Date(data_inicio)) { showToast('Data fim deve ser posterior à data início', 'error'); return; }
   if (max_participantes < 2) { showToast('Mínimo de 2 participantes', 'error'); return; }
   try {
-    const res = await fetch('/api/torneios', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ nome, descricao, id_jogo, id_achievement, taxa_inscricao, premio_1, premio_2, premio_3, max_participantes, data_inicio, hora_inicio, data_fim }) });
+    const res = await fetch('/api/torneios', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nome, descricao, id_jogo, id_achievement, taxa_inscricao, premio_1, premio_2, premio_3, max_participantes, data_inicio, hora_inicio, data_fim }) });
     const data = await res.json();
     if (data.error) { showToast(data.error, 'error'); return; }
     showToast('Torneio criado com sucesso!');
     navigateTo('torneios');
-  } catch(e) { showToast('Erro ao criar torneio', 'error'); }
+  } catch (e) { showToast('Erro ao criar torneio', 'error'); }
 }
 
 async function renderTorneioDetail(el) {
@@ -897,14 +943,14 @@ async function renderTorneioDetail(el) {
     if (t.descricao) html += `<p class="text-muted text-sm mb-4">${esc(t.descricao)}</p>`;
 
     html += `<div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:16px;margin-bottom:24px;">`;
-    html += `<div class="text-center p-4" style="background:rgba(30,41,59,0.3);border-radius:12px;border:1px solid rgba(42,51,80,0.5);"><div style="font-size:24px;margin-bottom:4px;">🎮</div><div class="text-xs text-muted">Jogo</div><div class="text-sm font-bold">${esc(t.jogo_nome||'')}</div></div>`;
-    html += `<div class="text-center p-4" style="background:rgba(30,41,59,0.3);border-radius:12px;border:1px solid rgba(42,51,80,0.5);"><div style="font-size:24px;margin-bottom:4px;">🏆</div><div class="text-xs text-muted">Achievement</div><div class="text-sm font-bold">${esc(t.achievement_nome||'')}</div></div>`;
+    html += `<div class="text-center p-4" style="background:rgba(30,41,59,0.3);border-radius:12px;border:1px solid rgba(42,51,80,0.5);"><div style="font-size:24px;margin-bottom:4px;">🎮</div><div class="text-xs text-muted">Jogo</div><div class="text-sm font-bold">${esc(t.jogo_nome || '')}</div></div>`;
+    html += `<div class="text-center p-4" style="background:rgba(30,41,59,0.3);border-radius:12px;border:1px solid rgba(42,51,80,0.5);"><div style="font-size:24px;margin-bottom:4px;">🏆</div><div class="text-xs text-muted">Achievement</div><div class="text-sm font-bold">${esc(t.achievement_nome || '')}</div></div>`;
     html += `<div class="text-center p-4" style="background:rgba(30,41,59,0.3);border-radius:12px;border:1px solid rgba(42,51,80,0.5);"><div style="font-size:24px;margin-bottom:4px;">📅</div><div class="text-xs text-muted">Início</div><div class="font-orbitron font-bold text-sm">${formatDate(t.data_inicio)}</div><div class="text-primary font-orbitron font-bold text-sm">${formatTime(t.hora_inicio)}</div></div>`;
-    html += `<div class="text-center p-4" style="background:rgba(30,41,59,0.3);border-radius:12px;border:1px solid rgba(42,51,80,0.5);"><div class="font-orbitron font-bold text-sm">👤 ${data.inscritos}/${t.max_participantes}</div><div class="text-xs mt-1 font-bold ${active?'':'text-danger'}" style="${active?'color:var(--success)':''}">${active?'Aberto':'Encerrado'}</div></div>`;
+    html += `<div class="text-center p-4" style="background:rgba(30,41,59,0.3);border-radius:12px;border:1px solid rgba(42,51,80,0.5);"><div class="font-orbitron font-bold text-sm">👤 ${data.inscritos}/${t.max_participantes}</div><div class="text-xs mt-1 font-bold ${active ? '' : 'text-danger'}" style="${active ? 'color:var(--success)' : ''}">${active ? 'Aberto' : 'Encerrado'}</div></div>`;
     html += `</div>`;
 
     html += `<h3 class="font-orbitron font-bold mb-3">🏅 Premiações</h3><div class="flex gap-4 flex-wrap mb-6">`;
-    [{pos:'1º',e:'🥇',p:t.premio_1,c:'rank-1'},{pos:'2º',e:'🥈',p:t.premio_2,c:'rank-2'},{pos:'3º',e:'🥉',p:t.premio_3,c:'rank-3'}].forEach(pr => {
+    [{ pos: '1º', e: '🥇', p: t.premio_1, c: 'rank-1' }, { pos: '2º', e: '🥈', p: t.premio_2, c: 'rank-2' }, { pos: '3º', e: '🥉', p: t.premio_3, c: 'rank-3' }].forEach(pr => {
       html += `<div class="card p-4 text-center" style="flex:1;min-width:120px;"><div style="font-size:32px;margin-bottom:4px;">${pr.e}</div><div class="font-orbitron font-bold ${pr.c}" style="font-size:18px;">${pr.pos} Lugar</div><div class="text-sm font-bold">R$ ${Number(pr.p).toFixed(2)}</div></div>`;
     });
     html += `</div>`;
@@ -931,13 +977,13 @@ async function renderTorneioDetail(el) {
     html += `<div class="table-wrap"><table><thead><tr><th>#</th><th>Jogador</th><th>Tempo</th><th>Pontos</th></tr></thead><tbody>`;
     data.participantes.forEach((p, i) => {
       const rc = i === 0 ? 'rank-1' : i === 1 ? 'rank-2' : i === 2 ? 'rank-3' : '';
-      const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i+1);
-      html += `<tr><td class="font-orbitron font-black ${rc}" style="font-size:18px;">${medal}</td><td class="font-bold text-sm">${esc(p.nickname)}</td><td style="font-family:monospace;">${p.tempo_conclusao||'--:--:--'}</td><td><span class="badge badge-points">${p.pontos_usuario} pts</span></td></tr>`;
+      const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i + 1);
+      html += `<tr><td class="font-orbitron font-black ${rc}" style="font-size:18px;">${medal}</td><td class="font-bold text-sm">${esc(p.nickname)}</td><td style="font-family:monospace;">${p.tempo_conclusao || '--:--:--'}</td><td><span class="badge badge-points">${p.pontos_usuario} pts</span></td></tr>`;
     });
     if (data.participantes.length === 0) html += `<tr><td colspan="4" class="text-center text-muted" style="padding:24px;">Nenhum participante ainda</td></tr>`;
     html += `</tbody></table></div></div></div>`;
     el.innerHTML = html;
-  } catch(e) { el.innerHTML = `<div class="text-center p-6 text-muted">Erro ao carregar torneio</div>`; }
+  } catch (e) { el.innerHTML = `<div class="text-center p-6 text-muted">Erro ao carregar torneio</div>`; }
   hideLoading();
 }
 
@@ -948,13 +994,13 @@ async function inscreverTorneio(id) {
     if (data.error) { showToast(data.error, 'error'); return; }
     showToast('Inscrito com sucesso! (Simulado)');
     navigateTo('torneioDetail', id);
-  } catch(e) { showToast('Erro ao se inscrever', 'error'); }
+  } catch (e) { showToast('Erro ao se inscrever', 'error'); }
 }
 
 async function postMural(id) {
   const texto = document.getElementById('mural-texto').value;
   if (!texto) return;
-  await fetch(`/api/torneios/${id}/mural`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({texto}) });
+  await fetch(`/api/torneios/${id}/mural`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ texto }) });
   navigateTo('torneioDetail', id);
 }
 
@@ -1021,7 +1067,7 @@ async function renderPerfil(el) {
 
     let html = `<div class="animate-in" style="max-width:900px;margin:0 auto;">`;
     const initial = currentUser.nickname.charAt(0).toUpperCase();
-    html += `<div class="profile-banner" style="background:${currentUser.cor_banner||'#6366f1'};height:120px;border-radius:var(--radius) var(--radius) 0 0;position:relative;">`;
+    html += `<div class="profile-banner" style="background:${currentUser.cor_banner || '#6366f1'};height:120px;border-radius:var(--radius) var(--radius) 0 0;position:relative;">`;
     html += `<div style="position:absolute;bottom:-40px;left:24px;z-index:2;">`;
     if (currentUser.foto_perfil) {
       html += `<div class="avatar avatar-lg" style="border:3px solid var(--bg-card);"><img src="${esc(currentUser.foto_perfil)}" alt="Foto" onerror="this.parentElement.innerHTML='${initial}'"></div>`;
@@ -1031,59 +1077,59 @@ async function renderPerfil(el) {
     html += `</div></div>`;
     html += `<div class="card p-6 mb-6" style="padding-top:56px;">`;
     html += `<div><h2 class="font-orbitron font-bold" style="font-size:24px;">${esc(currentUser.nickname)}</h2>`;
-    html += `<p class="text-muted mt-1">${esc(currentUser.descricao_perfil||'Sem descrição')}</p>`;
+    html += `<p class="text-muted mt-1">${esc(currentUser.descricao_perfil || 'Sem descrição')}</p>`;
     if (currentUser.tipo === 'administrador') html += `<span class="badge badge-points mt-1">🛡️ Administrador</span>`;
     html += `<div class="flex gap-6 mt-3">`;
     html += `<div class="text-center"><div class="font-orbitron font-black text-accent" style="font-size:20px;">${currentUser.pontos_usuario}</div><div class="text-xs text-muted uppercase">Pontos</div></div>`;
-    html += `<div class="text-center"><div class="font-orbitron font-black text-accent" style="font-size:20px;">${(data.achievements||[]).length}</div><div class="text-xs text-muted uppercase">Achievements</div></div>`;
-    html += `<div class="text-center"><div class="font-orbitron font-black text-accent" style="font-size:20px;">${(data.jogos||[]).length}</div><div class="text-xs text-muted uppercase">Jogos</div></div>`;
+    html += `<div class="text-center"><div class="font-orbitron font-black text-accent" style="font-size:20px;">${(data.achievements || []).length}</div><div class="text-xs text-muted uppercase">Achievements</div></div>`;
+    html += `<div class="text-center"><div class="font-orbitron font-black text-accent" style="font-size:20px;">${(data.jogos || []).length}</div><div class="text-xs text-muted uppercase">Jogos</div></div>`;
     html += `</div></div></div>`;
 
     html += `<div class="tabs"><button class="tab active" id="perf-tab-achs" onclick="switchPerfTab('achs')">🏆 Achievements</button><button class="tab" id="perf-tab-jogos" onclick="switchPerfTab('jogos')">🎮 Jogos</button><button class="tab" id="perf-tab-edit" onclick="switchPerfTab('edit')">⚙️ Editar Perfil</button></div>`;
 
     html += `<div id="perf-achs" class="grid grid-3">`;
-    (data.achievements||[]).forEach(a => {
+    (data.achievements || []).forEach(a => {
       const db = a.dificuldade === 'facil' ? 'badge-easy' : a.dificuldade === 'medio' ? 'badge-medium' : 'badge-hard';
       const dl = a.dificuldade === 'facil' ? 'Fácil' : a.dificuldade === 'medio' ? 'Médio' : 'Difícil';
       const st = a.estado === 'aprovado' ? 'badge-easy' : 'badge-medium';
       const stl = a.estado === 'aprovado' ? '✅ Aprovado' : '⏳ Pendente';
       html += `<div class="card p-5"><div class="font-orbitron font-bold text-sm mb-2">🏆 ${esc(a.nome)}</div>`;
       if (a.descricao) html += `<p class="text-muted text-xs mb-1">${esc(a.descricao)}</p>`;
-      html += `<p class="text-muted text-xs mb-2">Jogo: ${esc(a.jogo_nome||'')}</p>`;
+      html += `<p class="text-muted text-xs mb-2">Jogo: ${esc(a.jogo_nome || '')}</p>`;
       html += `<div class="flex gap-2 flex-wrap"><span class="badge ${db}">${dl}</span><span class="badge badge-points">${a.pontos} pts</span><span class="badge ${st}">${stl}</span></div></div>`;
     });
-    if ((data.achievements||[]).length === 0) html += `<p class="text-muted">Nenhum achievement conquistado</p>`;
+    if ((data.achievements || []).length === 0) html += `<p class="text-muted">Nenhum achievement conquistado</p>`;
     html += `</div>`;
 
     html += `<div id="perf-jogos" class="hidden grid grid-3">`;
-    (data.jogos||[]).forEach(j => {
-      html += `<div class="card" style="overflow:hidden;"><img src="${esc(j.imagem||'/img/logo-icon.png')}" alt="${esc(j.nome)}" style="width:100%;height:120px;object-fit:cover;" onerror="this.src='/img/logo-icon.png'"><div class="p-4"><div class="font-orbitron font-bold text-sm mb-1">${esc(j.nome)}</div><p class="text-muted text-xs">Dev: ${esc(j.desenvolvedor||'')}</p></div></div>`;
+    (data.jogos || []).forEach(j => {
+      html += `<div class="card" style="overflow:hidden;"><img src="${esc(j.imagem || '/img/logo-icon.png')}" alt="${esc(j.nome)}" style="width:100%;height:120px;object-fit:cover;" onerror="this.src='/img/logo-icon.png'"><div class="p-4"><div class="font-orbitron font-bold text-sm mb-1">${esc(j.nome)}</div><p class="text-muted text-xs">Dev: ${esc(j.desenvolvedor || '')}</p></div></div>`;
     });
-    if ((data.jogos||[]).length === 0) html += `<p class="text-muted">Nenhum jogo vinculado</p>`;
+    if ((data.jogos || []).length === 0) html += `<p class="text-muted">Nenhum jogo vinculado</p>`;
     html += `</div>`;
 
     html += `<div id="perf-edit" class="hidden"><div class="card p-6" style="max-width:500px;">`;
     html += `<div class="font-orbitron font-bold mb-4">Editar Perfil</div>`;
     html += `<div id="perf-alert"></div>`;
-    html += `<div class="mb-4"><label class="label">Foto de Perfil</label><input type="file" id="perf-foto-file" accept="image/*" class="input" onchange="uploadFoto()"><input class="input mt-2" id="perf-foto-url" placeholder="ou cole uma URL" value="${esc(currentUser.foto_perfil||'')}"></div>`;
-    html += `<div class="mb-4"><label class="label">Bio / Descrição</label><textarea class="input" id="perf-bio" rows="3">${esc(currentUser.descricao_perfil||'')}</textarea></div>`;
+    html += `<div class="mb-4"><label class="label">Foto de Perfil</label><input type="file" id="perf-foto-file" accept="image/*" class="input" onchange="uploadFoto()"><input class="input mt-2" id="perf-foto-url" placeholder="ou cole uma URL" value="${esc(currentUser.foto_perfil || '')}"></div>`;
+    html += `<div class="mb-4"><label class="label">Bio / Descrição</label><textarea class="input" id="perf-bio" rows="3">${esc(currentUser.descricao_perfil || '')}</textarea></div>`;
     html += `<div class="mb-4"><label class="label">E-mail</label><input class="input" id="perf-email" type="email" value="${esc(currentUser.email)}"></div>`;
     html += `<div class="mb-4"><label class="label">Nova Senha (deixe vazio para manter)</label><input class="input" id="perf-senha" type="password" placeholder="mín. 4 chars, 1 maiúscula"></div>`;
-    html += `<div class="mb-4"><label class="label">Cor do Banner</label><div class="flex items-center gap-3"><input type="color" id="perf-banner" value="${currentUser.cor_banner||'#6366f1'}" style="width:48px;height:40px;border:none;cursor:pointer;"><span class="text-xs text-muted" id="perf-banner-val">${currentUser.cor_banner||'#6366f1'}</span></div></div>`;
+    html += `<div class="mb-4"><label class="label">Cor do Banner</label><div class="flex items-center gap-3"><input type="color" id="perf-banner" value="${currentUser.cor_banner || '#6366f1'}" style="width:48px;height:40px;border:none;cursor:pointer;"><span class="text-xs text-muted" id="perf-banner-val">${currentUser.cor_banner || '#6366f1'}</span></div></div>`;
     html += `<button class="btn btn-primary" onclick="savePerfil()">💾 Salvar Alterações</button>`;
     html += `</div></div>`;
     html += `</div>`;
     el.innerHTML = html;
 
-    document.getElementById('perf-banner').addEventListener('input', function() {
+    document.getElementById('perf-banner').addEventListener('input', function () {
       document.getElementById('perf-banner-val').textContent = this.value;
     });
-  } catch(e) { el.innerHTML = `<div class="text-center p-6 text-muted">Erro ao carregar perfil</div>`; }
+  } catch (e) { el.innerHTML = `<div class="text-center p-6 text-muted">Erro ao carregar perfil</div>`; }
   hideLoading();
 }
 
 function switchPerfTab(tab) {
-  ['achs','jogos','edit'].forEach(t => {
+  ['achs', 'jogos', 'edit'].forEach(t => {
     document.getElementById(`perf-tab-${t}`).classList.toggle('active', t === tab);
     document.getElementById(`perf-${t}`).classList.toggle('hidden', t !== tab);
   });
@@ -1102,7 +1148,7 @@ async function uploadFoto() {
       document.getElementById('perf-foto-url').value = data.foto_perfil;
       document.getElementById('perf-alert').innerHTML = `<div class="alert alert-success">Foto atualizada!</div>`;
     }
-  } catch(e) { document.getElementById('perf-alert').innerHTML = `<div class="alert alert-error">Erro ao enviar foto</div>`; }
+  } catch (e) { document.getElementById('perf-alert').innerHTML = `<div class="alert alert-error">Erro ao enviar foto</div>`; }
 }
 
 async function savePerfil() {
@@ -1116,7 +1162,7 @@ async function savePerfil() {
   };
   if (body.senha && (body.senha.length < 4 || !/[A-Z]/.test(body.senha))) { document.getElementById('perf-alert').innerHTML = '<div class="alert alert-error">Senha deve ter mínimo 4 caracteres e 1 maiúscula</div>'; return; }
   try {
-    const res = await fetch('/api/perfil', { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    const res = await fetch('/api/perfil', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const data = await res.json();
     if (data.error) { document.getElementById('perf-alert').innerHTML = `<div class="alert alert-error">${esc(data.error)}</div>`; return; }
     currentUser.descricao_perfil = body.descricao_perfil;
@@ -1124,7 +1170,7 @@ async function savePerfil() {
     currentUser.cor_banner = body.cor_banner;
     document.getElementById('perf-alert').innerHTML = `<div class="alert alert-success">✅ Perfil atualizado com sucesso!</div>`;
     renderSidebar();
-  } catch(e) { document.getElementById('perf-alert').innerHTML = `<div class="alert alert-error">Erro ao salvar perfil</div>`; }
+  } catch (e) { document.getElementById('perf-alert').innerHTML = `<div class="alert alert-error">Erro ao salvar perfil</div>`; }
 }
 
 // =================== USER PROFILE ===================
@@ -1149,8 +1195,8 @@ async function renderUserProfile(el) {
     if (profile.descricao_perfil) html += `<p class="text-muted mt-1">${esc(profile.descricao_perfil)}</p>`;
     html += `<div class="flex gap-6 mt-3">`;
     html += `<div class="text-center"><div class="font-orbitron font-black text-accent" style="font-size:20px;">${profile.pontos_usuario}</div><div class="text-xs text-muted uppercase">Pontos</div></div>`;
-    html += `<div class="text-center"><div class="font-orbitron font-black text-accent" style="font-size:20px;">${(data.achievements||[]).length}</div><div class="text-xs text-muted uppercase">Achievements</div></div>`;
-    html += `<div class="text-center"><div class="font-orbitron font-black text-accent" style="font-size:20px;">${(data.jogos||[]).length}</div><div class="text-xs text-muted uppercase">Jogos</div></div>`;
+    html += `<div class="text-center"><div class="font-orbitron font-black text-accent" style="font-size:20px;">${(data.achievements || []).length}</div><div class="text-xs text-muted uppercase">Achievements</div></div>`;
+    html += `<div class="text-center"><div class="font-orbitron font-black text-accent" style="font-size:20px;">${(data.jogos || []).length}</div><div class="text-xs text-muted uppercase">Jogos</div></div>`;
     html += `</div>`;
 
     // FIX: Admins cannot report users — only regular users can
@@ -1164,27 +1210,27 @@ async function renderUserProfile(el) {
     }
     html += `</div></div>`;
 
-    html += `<h3 class="font-orbitron font-bold mb-4" style="font-size:18px;">🏆 Achievements (${(data.achievements||[]).length})</h3>`;
+    html += `<h3 class="font-orbitron font-bold mb-4" style="font-size:18px;">🏆 Achievements (${(data.achievements || []).length})</h3>`;
     html += `<div class="grid grid-3 mb-6">`;
-    (data.achievements||[]).forEach(a => {
+    (data.achievements || []).forEach(a => {
       const db = a.dificuldade === 'facil' ? 'badge-easy' : a.dificuldade === 'medio' ? 'badge-medium' : 'badge-hard';
       const dl = a.dificuldade === 'facil' ? 'Fácil' : a.dificuldade === 'medio' ? 'Médio' : 'Difícil';
       html += `<div class="card p-4"><div class="font-orbitron font-bold text-sm mb-1">🏆 ${esc(a.nome)}</div>`;
       if (a.descricao) html += `<p class="text-muted text-xs mb-2">${esc(a.descricao)}</p>`;
       html += `<div class="flex gap-2"><span class="badge ${db}">${dl}</span><span class="badge badge-points">${a.pontos} pts</span></div></div>`;
     });
-    if ((data.achievements||[]).length === 0) html += `<p class="text-muted">Nenhum achievement conquistado</p>`;
+    if ((data.achievements || []).length === 0) html += `<p class="text-muted">Nenhum achievement conquistado</p>`;
     html += `</div>`;
 
-    html += `<h3 class="font-orbitron font-bold mb-4" style="font-size:18px;">🎮 Jogos Vinculados (${(data.jogos||[]).length})</h3>`;
+    html += `<h3 class="font-orbitron font-bold mb-4" style="font-size:18px;">🎮 Jogos Vinculados (${(data.jogos || []).length})</h3>`;
     html += `<div class="grid grid-3">`;
-    (data.jogos||[]).forEach(j => {
-      html += `<div class="card" style="overflow:hidden;"><img src="${esc(j.imagem||'/img/logo-icon.png')}" alt="${esc(j.nome)}" style="width:100%;height:112px;object-fit:cover;" onerror="this.src='/img/logo-icon.png'"><div class="p-4"><div class="font-orbitron font-bold text-sm mb-1">${esc(j.nome)}</div><p class="text-muted text-xs">Dev: ${esc(j.desenvolvedor||'')}</p></div></div>`;
+    (data.jogos || []).forEach(j => {
+      html += `<div class="card" style="overflow:hidden;"><img src="${esc(j.imagem || '/img/logo-icon.png')}" alt="${esc(j.nome)}" style="width:100%;height:112px;object-fit:cover;" onerror="this.src='/img/logo-icon.png'"><div class="p-4"><div class="font-orbitron font-bold text-sm mb-1">${esc(j.nome)}</div><p class="text-muted text-xs">Dev: ${esc(j.desenvolvedor || '')}</p></div></div>`;
     });
-    if ((data.jogos||[]).length === 0) html += `<p class="text-muted">Nenhum jogo vinculado</p>`;
+    if ((data.jogos || []).length === 0) html += `<p class="text-muted">Nenhum jogo vinculado</p>`;
     html += `</div></div>`;
     el.innerHTML = html;
-  } catch(e) { el.innerHTML = `<div class="text-center p-6 text-muted">Erro ao carregar perfil do usuário</div>`; }
+  } catch (e) { el.innerHTML = `<div class="text-center p-6 text-muted">Erro ao carregar perfil do usuário</div>`; }
   hideLoading();
 }
 
@@ -1221,8 +1267,8 @@ async function renderAdmin(el) {
     html += `<div id="adm-users" class="card" style="overflow:hidden;"><div class="table-wrap"><table><thead><tr><th>ID</th><th>Nickname</th><th>Email</th><th>Tipo</th><th>Pontos</th><th>Ações</th></tr></thead><tbody>`;
     users.forEach(u => {
       const isSelf = u.id === currentUser.id;
-      const banBtn = !isSelf ? `<button class="btn btn-danger btn-sm" onclick="adminBanir(${u.id})">${u.banido?'Desbanir':'Banir'}</button>` : '';
-      html += `<tr><td>${u.id}</td><td class="font-bold">${esc(u.nickname)}</td><td class="text-muted">${esc(u.email)}</td><td><span class="badge ${u.tipo==='administrador'?'badge-points':'badge-easy'}">${u.tipo}</span></td><td>${u.pontos_usuario}</td>`;
+      const banBtn = !isSelf ? `<button class="btn btn-danger btn-sm" onclick="adminBanir(${u.id})">${u.banido ? 'Desbanir' : 'Banir'}</button>` : '';
+      html += `<tr><td>${u.id}</td><td class="font-bold">${esc(u.nickname)}</td><td class="text-muted">${esc(u.email)}</td><td><span class="badge ${u.tipo === 'administrador' ? 'badge-points' : 'badge-easy'}">${u.tipo}</span></td><td>${u.pontos_usuario}</td>`;
       html += `<td><div class="flex gap-1">${banBtn}</div></td></tr>`;
     });
     html += `</tbody></table></div></div>`;
@@ -1235,7 +1281,7 @@ async function renderAdmin(el) {
     html += `<button class="btn btn-gold btn-sm mb-4" onclick="document.getElementById('admin-add-jogo-form').classList.toggle('hidden')">+ Adicionar Jogo</button>`;
     html += `<div class="card" style="overflow:hidden;"><div class="table-wrap"><table><thead><tr><th>ID</th><th>Nome</th><th>Dev</th><th>Ações</th></tr></thead><tbody>`;
     jogos.forEach(j => {
-      html += `<tr><td>${j.id_jogo}</td><td class="font-bold">${esc(j.nome)}</td><td class="text-muted">${esc(j.desenvolvedor||'')}</td><td><button class="btn btn-danger btn-sm" onclick="adminDelJogo(${j.id_jogo})">Eliminar</button></td></tr>`;
+      html += `<tr><td>${j.id_jogo}</td><td class="font-bold">${esc(j.nome)}</td><td class="text-muted">${esc(j.desenvolvedor || '')}</td><td><button class="btn btn-danger btn-sm" onclick="adminDelJogo(${j.id_jogo})">Eliminar</button></td></tr>`;
     });
     html += `</tbody></table></div></div>`;
     html += `<div id="admin-add-jogo-form" class="hidden card p-5 mt-4">
@@ -1298,12 +1344,12 @@ async function renderAdmin(el) {
     // Load async tabs
     loadAdminReivindicacoes();
     loadAdminDenuncias();
-  } catch(e) { el.innerHTML = `<div class="text-center p-6 text-muted">Erro ao carregar painel admin</div>`; }
+  } catch (e) { el.innerHTML = `<div class="text-center p-6 text-muted">Erro ao carregar painel admin</div>`; }
   hideLoading();
 }
 
 function switchAdmTab(tab) {
-  const tabs = ['users','reiv','jogos','achs','denuncias','admins'];
+  const tabs = ['users', 'reiv', 'jogos', 'achs', 'denuncias', 'admins'];
   tabs.forEach(t => {
     const btn = document.getElementById(`adm-tab-${t}`);
     const panel = document.getElementById(`adm-${t}`);
@@ -1312,9 +1358,9 @@ function switchAdmTab(tab) {
   });
 }
 
-async function adminBanir(id) { await fetch('/api/admin/banir', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id_usuario:id}) }); navigateTo('admin'); }
-async function adminDelJogo(id) { if (confirm('Eliminar este jogo?')) { await fetch(`/api/admin/jogos/${id}`, { method:'DELETE' }); navigateTo('admin'); } }
-async function adminDelAch(id) { if (confirm('Eliminar este achievement?')) { await fetch(`/api/admin/achievements/${id}`, { method:'DELETE' }); navigateTo('admin'); } }
+async function adminBanir(id) { await fetch('/api/admin/banir', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id_usuario: id }) }); navigateTo('admin'); }
+async function adminDelJogo(id) { if (confirm('Eliminar este jogo?')) { await fetch(`/api/admin/jogos/${id}`, { method: 'DELETE' }); navigateTo('admin'); } }
+async function adminDelAch(id) { if (confirm('Eliminar este achievement?')) { await fetch(`/api/admin/achievements/${id}`, { method: 'DELETE' }); navigateTo('admin'); } }
 
 // Super admin: promote by nickname search
 async function adminPromoverPorNick() {
@@ -1332,24 +1378,24 @@ async function adminPromoverPorNick() {
         <div class="flex items-center justify-between">
           <div>
             <div class="font-bold">${esc(user.nickname)}</div>
-            <div class="text-xs text-muted">Cargo atual: <span class="badge ${isAdmin?'badge-points':'badge-easy'}">${user.tipo}</span></div>
+            <div class="text-xs text-muted">Cargo atual: <span class="badge ${isAdmin ? 'badge-points' : 'badge-easy'}">${user.tipo}</span></div>
           </div>
-          <button class="btn ${isAdmin?'btn-danger':'btn-gold'} btn-sm" onclick="adminExecutarPromocao(${user.id},'${esc(user.nickname)}',${isAdmin})">
+          <button class="btn ${isAdmin ? 'btn-danger' : 'btn-gold'} btn-sm" onclick="adminExecutarPromocao(${user.id},'${esc(user.nickname)}',${isAdmin})">
             ${isAdmin ? '⬇️ Rebaixar para Usuário' : '⬆️ Promover a Administrador'}
           </button>
         </div>
       </div>`;
-  } catch(e) { document.getElementById('admins-alert').innerHTML = '<div class="alert alert-error">Erro ao buscar usuário</div>'; }
+  } catch (e) { document.getElementById('admins-alert').innerHTML = '<div class="alert alert-error">Erro ao buscar usuário</div>'; }
 }
 
 async function adminExecutarPromocao(id, nickname, isAdmin) {
   try {
-    const res = await fetch('/api/admin/promover', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id_usuario:id}) });
+    const res = await fetch('/api/admin/promover', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id_usuario: id }) });
     const data = await res.json();
     if (data.error) { showToast(data.error, 'error'); return; }
     showToast(isAdmin ? `${nickname} rebaixado para usuário.` : `${nickname} promovido a administrador!`);
     navigateTo('admin');
-  } catch(e) { showToast('Erro ao alterar cargo', 'error'); }
+  } catch (e) { showToast('Erro ao alterar cargo', 'error'); }
 }
 
 async function adminRebaixar(id, nickname) {
@@ -1403,7 +1449,7 @@ async function loadAdminReivindicacoes() {
       html += `</div>`;
     });
     container.innerHTML = html;
-  } catch(e) { container.innerHTML = `<p class="text-muted p-4">Erro ao carregar reivindicações</p>`; }
+  } catch (e) { container.innerHTML = `<p class="text-muted p-4">Erro ao carregar reivindicações</p>`; }
 }
 
 // =================== FRIENDS ===================
@@ -1425,7 +1471,7 @@ async function loadPendingCount() {
     const badge = document.getElementById('fab-badge');
     if (data.length > 0) { badge.textContent = data.length; badge.classList.remove('hidden'); }
     else { badge.classList.add('hidden'); }
-  } catch(e) {}
+  } catch (e) { }
 }
 
 function toggleFriends() {
@@ -1448,7 +1494,7 @@ async function renderFriendsPanel() {
     let html = `<div style="padding:12px 16px;border-bottom:1px solid var(--border);background:linear-gradient(135deg,rgba(129,140,248,0.1),transparent);">`;
     html += `<div class="flex items-center gap-2"><span class="text-primary">👥</span><span class="font-orbitron font-bold text-sm">Amigos</span><span class="text-xs text-muted" style="margin-left:auto;">${friends.length} amigos</span></div></div>`;
 
-    html += `<div class="flex gap-1" style="padding:12px 12px 8px;"><button class="tab active" id="fr-tab-friends" onclick="switchFrTab('friends')" style="flex:1;font-size:12px;">Amigos</button><button class="tab" id="fr-tab-requests" onclick="switchFrTab('requests')" style="flex:1;font-size:12px;position:relative;">Pedidos${pending.length>0?`<span class="fab-badge" style="position:absolute;top:-4px;right:-2px;">${pending.length}</span>`:''}</button><button class="tab" id="fr-tab-add" onclick="switchFrTab('add')" style="flex:1;font-size:12px;">Adicionar</button></div>`;
+    html += `<div class="flex gap-1" style="padding:12px 12px 8px;"><button class="tab active" id="fr-tab-friends" onclick="switchFrTab('friends')" style="flex:1;font-size:12px;">Amigos</button><button class="tab" id="fr-tab-requests" onclick="switchFrTab('requests')" style="flex:1;font-size:12px;position:relative;">Pedidos${pending.length > 0 ? `<span class="fab-badge" style="position:absolute;top:-4px;right:-2px;">${pending.length}</span>` : ''}</button><button class="tab" id="fr-tab-add" onclick="switchFrTab('add')" style="flex:1;font-size:12px;">Adicionar</button></div>`;
 
     html += `<div id="fr-friends" style="flex:1;overflow-y:auto;padding:4px 8px;">`;
     friends.forEach(f => {
@@ -1479,18 +1525,18 @@ async function renderFriendsPanel() {
 
     panel.innerHTML = html;
 
-    document.getElementById('fr-search')?.addEventListener('input', function() {
+    document.getElementById('fr-search')?.addEventListener('input', function () {
       const v = this.value.trim();
       const r = document.getElementById('fr-search-result');
       if (v) {
         r.innerHTML = `<div style="background:rgba(30,41,59,0.3);border-radius:12px;padding:12px;" class="flex items-center justify-between"><div class="flex items-center gap-3"><div class="avatar avatar-sm gradient-main">${v.charAt(0).toUpperCase()}</div><span class="text-sm font-bold">${esc(v)}</span></div><button class="btn btn-gold btn-sm" onclick="addFriendByNick('${esc(v)}')">Adicionar</button></div>`;
       } else { r.innerHTML = `<div class="text-center p-4 text-muted text-xs">Digite o nickname do jogador</div>`; }
     });
-  } catch(e) { panel.innerHTML = `<div class="text-center p-6 text-muted">Erro</div>`; }
+  } catch (e) { panel.innerHTML = `<div class="text-center p-6 text-muted">Erro</div>`; }
 }
 
 function switchFrTab(tab) {
-  ['friends','requests','add'].forEach(t => {
+  ['friends', 'requests', 'add'].forEach(t => {
     const tabBtn = document.getElementById(`fr-tab-${t}`);
     const content = document.getElementById(`fr-${t}`);
     if (tabBtn) tabBtn.classList.toggle('active', t === tab);
@@ -1500,16 +1546,16 @@ function switchFrTab(tab) {
 
 async function addFriendByNick(nickname) {
   try {
-    const res = await fetch('/api/amigos/enviar', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({nickname}) });
+    const res = await fetch('/api/amigos/enviar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nickname }) });
     const data = await res.json();
     if (data.error) { showToast(data.error, 'error'); return; }
     showToast('Pedido de amizade enviado!');
     if (currentPage === 'userProfile' && window._pageData) navigateTo('userProfile', window._pageData);
-  } catch(e) { showToast('Erro ao enviar pedido', 'error'); }
+  } catch (e) { showToast('Erro ao enviar pedido', 'error'); }
 }
 
 async function respondFriend(id, aceitar) {
-  await fetch('/api/amigos/responder', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id_amizade:id,aceitar}) });
+  await fetch('/api/amigos/responder', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id_amizade: id, aceitar }) });
   renderFriendsPanel();
   loadPendingCount();
 }
@@ -1520,7 +1566,7 @@ async function startChat(userId, nickname) {
   try {
     const res = await fetch(`/api/mensagens/${userId}`);
     chatMessages = await res.json();
-  } catch(e) {}
+  } catch (e) { }
   renderChat(document.getElementById('friends-panel'));
 }
 
@@ -1536,11 +1582,11 @@ function renderChat(panel) {
   if (chatMessages.length === 0) html += `<div class="text-center p-6 text-muted text-xs">Inicie a conversa!</div>`;
   chatMessages.forEach(m => {
     const isMe = m.id_remetente === currentUser.id;
-    const time = m.created_at ? new Date(m.created_at).toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'}) : '';
-    html += `<div style="display:flex;${isMe?'justify-content:flex-end':'justify-content:flex-start'};margin-bottom:8px;">`;
+    const time = m.created_at ? new Date(m.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '';
+    html += `<div style="display:flex;${isMe ? 'justify-content:flex-end' : 'justify-content:flex-start'};margin-bottom:8px;">`;
     html += `<div style="max-width:75%;">`;
-    html += `<div style="padding:8px 12px;border-radius:16px;font-size:12px;line-height:1.5;box-shadow:0 1px 4px rgba(0,0,0,0.15);${isMe?'background:linear-gradient(135deg,#818cf8,#a78bfa);color:#fff;border-bottom-right-radius:4px;':'background:var(--bg-input);border-bottom-left-radius:4px;'}">${esc(m.texto)}</div>`;
-    html += `<div style="font-size:9px;color:var(--text-muted);margin-top:2px;${isMe?'text-align:right;':'text-align:left;'}">${time}</div>`;
+    html += `<div style="padding:8px 12px;border-radius:16px;font-size:12px;line-height:1.5;box-shadow:0 1px 4px rgba(0,0,0,0.15);${isMe ? 'background:linear-gradient(135deg,#818cf8,#a78bfa);color:#fff;border-bottom-right-radius:4px;' : 'background:var(--bg-input);border-bottom-left-radius:4px;'}">${esc(m.texto)}</div>`;
+    html += `<div style="font-size:9px;color:var(--text-muted);margin-top:2px;${isMe ? 'text-align:right;' : 'text-align:left;'}">${time}</div>`;
     html += `</div></div>`;
   });
   html += `</div>`;
@@ -1560,11 +1606,11 @@ async function sendChatMsg() {
   if (!texto || !chatWith) return;
   input.value = '';
   try {
-    await fetch('/api/mensagens', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({id_destinatario:chatWith.id,texto}) });
+    await fetch('/api/mensagens', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id_destinatario: chatWith.id, texto }) });
     const res = await fetch(`/api/mensagens/${chatWith.id}`);
     chatMessages = await res.json();
     renderChat(document.getElementById('friends-panel'));
-  } catch(e) {}
+  } catch (e) { }
 }
 
 // =================== ACHIEVEMENT REIVINDICACAO ===================
@@ -1608,14 +1654,14 @@ async function enviarReivindicacao() {
     return;
   }
   try {
-    const res = await fetch('/api/achievements/reivindicar', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ id_achievement: _reivindicarAchId, video_url }) });
+    const res = await fetch('/api/achievements/reivindicar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id_achievement: _reivindicarAchId, video_url }) });
     const data = await res.json();
     if (data.error) { document.getElementById('reivindicar-alert').innerHTML = `<div class="alert alert-error">${esc(data.error)}</div>`; return; }
     closeReivindicarModal();
     showToast('Reivindicação enviada! Aguarde a aprovação de um administrador.');
     if (currentPage === 'jogoDetail' && window._pageData) navigateTo('jogoDetail', window._pageData);
     else if (currentPage === 'achievements') navigateTo('achievements');
-  } catch(e) { showToast('Erro ao enviar reivindicação', 'error'); }
+  } catch (e) { showToast('Erro ao enviar reivindicação', 'error'); }
 }
 
 // =================== ACHIEVEMENT RANKING PAGE ===================
@@ -1634,7 +1680,7 @@ async function renderAchievementRanking(el) {
     if (a.descricao) html += `<p class="text-muted text-sm mb-2">${esc(a.descricao)}</p>`;
     const db = a.dificuldade === 'facil' ? 'badge-easy' : a.dificuldade === 'medio' ? 'badge-medium' : 'badge-hard';
     const dl = a.dificuldade === 'facil' ? 'Fácil' : a.dificuldade === 'medio' ? 'Médio' : 'Difícil';
-    html += `<div class="flex gap-2"><span class="badge ${db}">${dl}</span><span class="badge badge-points">${a.pontos} pts</span><span class="badge badge-info">🎮 ${esc(a.jogo_nome||'Geral')}</span></div>`;
+    html += `<div class="flex gap-2"><span class="badge ${db}">${dl}</span><span class="badge badge-points">${a.pontos} pts</span><span class="badge badge-info">🎮 ${esc(a.jogo_nome || 'Geral')}</span></div>`;
     html += `<div class="mt-3"><span class="badge badge-easy" style="padding:8px 14px;font-size:13px;">✅ ${data.totalConquistadores} jogadores conquistaram</span></div>`;
     html += `</div>`;
 
@@ -1643,7 +1689,7 @@ async function renderAchievementRanking(el) {
       html += `<div class="card" style="overflow:hidden;"><div class="table-wrap"><table><thead><tr><th>#</th><th>Jogador</th><th>Data da Conquista</th></tr></thead><tbody>`;
       data.ranking.forEach((r, i) => {
         const rc = i === 0 ? 'rank-1' : i === 1 ? 'rank-2' : i === 2 ? 'rank-3' : '';
-        const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i+1);
+        const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : (i + 1);
         html += `<tr><td class="font-orbitron font-black ${rc}" style="font-size:18px;">${medal}</td><td class="font-bold text-sm">${esc(r.nickname)}</td><td class="text-muted text-sm">${formatDate(r.data_conquista)}</td></tr>`;
       });
       html += `</tbody></table></div></div>`;
@@ -1666,20 +1712,20 @@ async function renderAchievementRanking(el) {
 
     html += `</div>`;
     el.innerHTML = html;
-  } catch(e) { el.innerHTML = `<div class="text-center p-6 text-muted">Erro ao carregar ranking</div>`; }
+  } catch (e) { el.innerHTML = `<div class="text-center p-6 text-muted">Erro ao carregar ranking</div>`; }
   hideLoading();
 }
 
 async function adminReivindicar(id, acao) {
   try {
-    const res = await fetch(`/api/admin/reivindicacoes/${id}`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ acao }) });
+    const res = await fetch(`/api/admin/reivindicacoes/${id}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ acao }) });
     const data = await res.json();
     if (data.error) { showToast(data.error, 'error'); return; }
     showToast(acao === 'aprovar' ? 'Reivindicação aprovada! Pontos adicionados.' : 'Reivindicação rejeitada.');
     // Refresh whichever view is active
     if (currentPage === 'achievementRanking') navigateTo('achievementRanking', window._pageData);
     else loadAdminReivindicacoes();
-  } catch(e) { showToast('Erro ao processar reivindicação', 'error'); }
+  } catch (e) { showToast('Erro ao processar reivindicação', 'error'); }
 }
 
 // =================== ADMIN ADD JOGO/ACH ===================
@@ -1700,17 +1746,19 @@ async function adminAddJogo() {
     }
   });
   try {
-    const res = await fetch('/api/admin/jogos', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({
-      nome, desenvolvedor: document.getElementById('admin-jogo-dev').value.trim(),
-      descricao: document.getElementById('admin-jogo-desc').value.trim(),
-      imagem: document.getElementById('admin-jogo-img').value.trim(),
-      achievements
-    })});
+    const res = await fetch('/api/admin/jogos', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+        nome, desenvolvedor: document.getElementById('admin-jogo-dev').value.trim(),
+        descricao: document.getElementById('admin-jogo-desc').value.trim(),
+        imagem: document.getElementById('admin-jogo-img').value.trim(),
+        achievements
+      })
+    });
     const data = await res.json();
     if (data.error) { showToast(data.error, 'error'); return; }
     showToast('Jogo criado com sucesso!');
     navigateTo('admin');
-  } catch(e) { showToast('Erro ao criar jogo', 'error'); }
+  } catch (e) { showToast('Erro ao criar jogo', 'error'); }
 }
 
 let _achRowCounter = 0;
@@ -1789,12 +1837,12 @@ async function enviarDenuncia(idDenunciado) {
     return;
   }
   try {
-    const res = await fetch('/api/denunciar', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ id_denunciado: idDenunciado, motivo, descricao }) });
+    const res = await fetch('/api/denunciar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id_denunciado: idDenunciado, motivo, descricao }) });
     const data = await res.json();
     if (data.error) { document.getElementById('denuncia-alert').innerHTML = `<div class="alert alert-error">${esc(data.error)}</div>`; return; }
     closeDenunciaModal();
     showToast('Denúncia enviada com sucesso!');
-  } catch(e) { showToast('Erro ao enviar denúncia', 'error'); }
+  } catch (e) { showToast('Erro ao enviar denúncia', 'error'); }
 }
 
 async function loadAdminDenuncias() {
@@ -1812,7 +1860,7 @@ async function loadAdminDenuncias() {
     denuncias.forEach(d => {
       const estadoBadge = d.estado === 'pendente' ? 'badge-medium' : d.estado === 'resolvida' ? 'badge-easy' : 'badge-hard';
       const estadoText = d.estado === 'pendente' ? '⏳ Pendente' : d.estado === 'resolvida' ? '✅ Resolvida' : '❌ Rejeitada';
-      html += `<div class="card p-4 mb-3" style="border-left:4px solid ${d.estado==='pendente'?'var(--accent)':d.estado==='resolvida'?'var(--success)':'var(--danger)'};">`;
+      html += `<div class="card p-4 mb-3" style="border-left:4px solid ${d.estado === 'pendente' ? 'var(--accent)' : d.estado === 'resolvida' ? 'var(--success)' : 'var(--danger)'};">`;
       html += `<div class="flex items-center justify-between mb-2">`;
       html += `<div><span class="font-bold text-sm">🚨 ${esc(d.motivo)}</span> <span class="badge ${estadoBadge}">${estadoText}</span></div>`;
       html += `<span class="text-xs text-muted">${formatDate(d.created_at)}</span>`;
@@ -1828,17 +1876,17 @@ async function loadAdminDenuncias() {
       html += `</div>`;
     });
     container.innerHTML = html;
-  } catch(e) { container.innerHTML = `<p class="text-muted">Erro ao carregar denúncias</p>`; }
+  } catch (e) { container.innerHTML = `<p class="text-muted">Erro ao carregar denúncias</p>`; }
 }
 
 async function adminResolverDenuncia(id, acao) {
   try {
-    const res = await fetch(`/api/admin/denuncias/${id}`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ acao }) });
+    const res = await fetch(`/api/admin/denuncias/${id}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ acao }) });
     const data = await res.json();
     if (data.error) { showToast(data.error, 'error'); return; }
     showToast(acao === 'resolver' ? 'Denúncia resolvida!' : 'Denúncia rejeitada.');
     loadAdminDenuncias();
-  } catch(e) { showToast('Erro ao processar denúncia', 'error'); }
+  } catch (e) { showToast('Erro ao processar denúncia', 'error'); }
 }
 
 // =================== LOADING ===================
@@ -1887,6 +1935,14 @@ function esc(str) {
   const div = document.createElement('div');
   div.textContent = str;
   return div.innerHTML;
+}
+
+function mascaraCPF(input) {
+  let v = input.value.replace(/\D/g, '').slice(0, 11);
+  if (v.length > 9) v = v.replace(/(\d{3})(\d{3})(\d{3})(\d{1,2})/, '$1.$2.$3-$4');
+  else if (v.length > 6) v = v.replace(/(\d{3})(\d{3})(\d{1,3})/, '$1.$2.$3');
+  else if (v.length > 3) v = v.replace(/(\d{3})(\d{1,3})/, '$1.$2');
+  input.value = v;
 }
 
 // =================== START ===================
